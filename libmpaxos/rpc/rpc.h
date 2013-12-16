@@ -29,7 +29,7 @@ typedef struct {
 
     apr_pool_t *mp;
     apr_thread_mutex_t *mx;
-    
+    apr_pollset_t *ps;  
     rpc_common_t *com;
     
     struct  {
@@ -56,6 +56,7 @@ typedef struct {
 
 typedef struct {
     rpc_common_t com;
+    context_t *ctx;
     context_t **ctxs;
     size_t sz_ctxs;
 } server_t;

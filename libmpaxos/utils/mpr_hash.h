@@ -12,6 +12,7 @@
 
 #include <stdlib.h>
 #include <apr_hash.h>
+#include <apr_thread_rwlock.h>
 #include "logger.h"
 
 #ifdef	__cplusplus
@@ -20,7 +21,8 @@ extern "C" {
 
 typedef struct {
     apr_pool_t *mp;
-    apr_thread_mutex_t *mx;
+//    apr_thread_mutex_t *mx;
+    apr_thread_rwlock_t *rwl;
     apr_hash_t *ht;
 } mpr_hash_t;    
 
@@ -36,7 +38,8 @@ static void mpr_hash_create(mpr_hash_t **hash) {
     apr_initialize();
     apr_pool_create(&(*hash)->mp, NULL);
     (*hash)->ht = apr_hash_make((*hash)->mp);
-    apr_thread_mutex_create(&(*hash)->mx, APR_THREAD_MUTEX_UNNESTED, (*hash)->mp);
+//    apr_thread_mutex_create(&(*hash)->mx, APR_THREAD_MUTEX_UNNESTED, (*hash)->mp);
+    apr_thread_rwlock_create(&(*hash)->rwl, (*hash)->mp);
 }
 
 static void mpr_hash_destroy(mpr_hash_t *hash) {
@@ -53,7 +56,8 @@ static void mpr_hash_destroy(mpr_hash_t *hash) {
         free(v);
     }
     
-    apr_thread_mutex_destroy(hash->mx);
+//    apr_thread_mutex_destroy(hash->mx);
+    apr_thread_rwlock_destroy(hash->rwl);
     apr_pool_destroy(hash->mp);
     free(hash);
     atexit(apr_terminate);
@@ -61,8 +65,8 @@ static void mpr_hash_destroy(mpr_hash_t *hash) {
 
 static void mpr_hash_set(mpr_hash_t *hash, const void *key, size_t sz_key, 
         const void *value, size_t sz_value) {
-    apr_thread_mutex_lock(hash->mx);
-    
+//    apr_thread_mutex_lock(hash->mx);
+    apr_thread_rwlock_wrlock(hash->rwl);    
     // delete the old value.
     mpr_hash_value_t *v_old = apr_hash_get(hash->ht, key, sz_key);
     if (v_old != NULL) {
@@ -88,12 +92,14 @@ static void mpr_hash_set(mpr_hash_t *hash, const void *key, size_t sz_key,
         // delete the value.
     }
     
-    apr_thread_mutex_unlock(hash->mx);
+    //apr_thread_mutex_unlock(hash->mx);
+    apr_thread_rwlock_unlock(hash->rwl);
 }
 
 static void mpr_hash_get(mpr_hash_t *hash, const void *key, size_t sz_key, 
         void **value, size_t *sz_value) {
-    apr_thread_mutex_lock(hash->mx);
+    //apr_thread_mutex_lock(hash->mx);
+    apr_thread_rwlock_rdlock(hash->rwl);
     
     mpr_hash_value_t *v_old = apr_hash_get(hash->ht, key, sz_key);
     if (v_old != NULL) {
@@ -104,7 +110,8 @@ static void mpr_hash_get(mpr_hash_t *hash, const void *key, size_t sz_key,
         *sz_value = 0;
     }
     
-    apr_thread_mutex_unlock(hash->mx);    
+//    apr_thread_mutex_unlock(hash->mx);    
+    apr_thread_rwlock_unlock(hash->rwl);    
 }
 
 

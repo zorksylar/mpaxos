@@ -16,15 +16,16 @@
 
 #define MAX_ON_READ_THREADS 1
 #define POLLSET_NUM 1000
+#define SZ_POLLSETS 32
 
 static apr_pool_t *mp_rpc_ = NULL; 
 static server_t *server_ = NULL;
-static apr_thread_t *th_poll_ = NULL;
+static apr_pollset_t *pollsets_[SZ_POLLSETS];
+static apr_thread_t *ths_poll_[SZ_POLLSETS];
 
-static apr_pollset_t *pollset_ = NULL;
 static int send_buf_size = 0;
 static socklen_t optlen;
-static int exit_ = 0;
+static volatile int exit_ = 0;
 //static apr_thread_pool_t *tp_on_read_;
 static mpr_thread_pool_t *tp_read_;
 
@@ -39,27 +40,42 @@ static uint32_t sz_data_sent_ = 0;
 static uint32_t sz_data_tosend_ = 0;
 static uint32_t n_data_sent_ = 0;
 
+static uint32_t init_ = 0;
+
 void rpc_init() {
     apr_initialize();
     apr_pool_create(&mp_rpc_, NULL);
-    apr_pollset_create(&pollset_, POLLSET_NUM, mp_rpc_, APR_POLLSET_THREADSAFE);
-    apr_thread_create(&th_poll_, NULL, start_poll, (void*)pollset_, mp_rpc_);
+    
+    for (int i = 0; i < SZ_POLLSETS; i++) {
+        apr_pollset_create(&pollsets_[i], POLLSET_NUM, mp_rpc_, APR_POLLSET_THREADSAFE);
+        apr_thread_create(&ths_poll_[i], NULL, start_poll, (void*)pollsets_[i], mp_rpc_);
+    }
+    init_ = 1;
 }
 
 void rpc_destroy() {
-    while (th_poll_ == NULL) {
+    while (init_ == 0) {
         // not started.
     }
     exit_ = 1;
     LOG_DEBUG("recv server ends.");
 /*
-    apr_pollset_wakeup(pollset_);
 */
     apr_status_t status = APR_SUCCESS;
-    apr_thread_join(&status, th_poll_);
-    apr_pollset_destroy(pollset_);
+//    apr_thread_join(&status, th_poll_);
+    for (int i = 0; i < SZ_POLLSETS; i++) {
+        apr_thread_join(&status, ths_poll_[i]);
+        apr_pollset_destroy(pollsets_[i]);
+    }
+
     apr_pool_destroy(mp_rpc_);
     atexit(apr_terminate);
+}
+
+apr_pollset_t* next_pollset() {
+    static volatile apr_uint32_t mark = 0;
+    uint32_t i = apr_atomic_inc32(&mark);
+    return pollsets_[i];
 }
 
 void client_create(client_t** c) {
@@ -86,6 +102,9 @@ void server_create(server_t** s) {
     mpr_hash_create(&server->com.ht);
     server->sz_ctxs = 0; 
     server->ctxs = apr_pcalloc(server->com.mp, sizeof(context_t **) * 10);
+    
+    context_t *ctx = context_gen(&(*s)->com);
+    (*s)->ctx = ctx;
 }
 
 void server_destroy(server_t *s) {
@@ -94,7 +113,9 @@ void server_destroy(server_t *s) {
         context_t *ctx = s->ctxs[i];
         context_destroy(ctx);
     }
+    context_destroy(s->ctx);
     apr_pool_destroy(s->com.mp);
+    free(s);
 }
 
 void server_regfun(server_t *s, funid_t fid, void* fun) {
@@ -148,6 +169,7 @@ context_t *context_gen(rpc_common_t *com) {
     ctx->buf_send.offset_begin = 0;
     ctx->buf_send.offset_end = 0;
     ctx->com = com;
+    ctx->ps = next_pollset();
     //ctx->on_recv = on_recv;
    
     apr_pool_create(&ctx->mp, NULL);
@@ -204,9 +226,9 @@ void add_write_buf_to_ctx(context_t *ctx, funid_t type,
     
     // change poll type
     if (ctx->pfd.reqevents == APR_POLLIN) {
-        apr_pollset_remove(pollset_, &ctx->pfd);
+        apr_pollset_remove(ctx->ps, &ctx->pfd);
         ctx->pfd.reqevents = APR_POLLIN | APR_POLLOUT;
-        apr_pollset_add(pollset_, &ctx->pfd);
+        apr_pollset_add(ctx->ps, &ctx->pfd);
     }
     
     apr_thread_mutex_unlock(ctx->mx);
@@ -235,6 +257,8 @@ void poll_on_write(context_t *ctx, const apr_pollfd_t *pfd) {
         stat_on_write(n);
         SAFE_ASSERT(status == APR_SUCCESS);
         ctx->buf_send.offset_begin += n;
+    } else if (n == 0){
+        LOG_WARN("nothing to write? how so?");
     } else {
         SAFE_ASSERT(0);
     }
@@ -242,9 +266,9 @@ void poll_on_write(context_t *ctx, const apr_pollfd_t *pfd) {
     n = ctx->buf_send.offset_end - ctx->buf_send.offset_begin;
     if (n == 0) {
         // buf empty, remove out poll.
-        apr_pollset_remove(pollset_, &ctx->pfd);
+        apr_pollset_remove(ctx->ps, &ctx->pfd);
         ctx->pfd.reqevents = APR_POLLIN;
-        apr_pollset_add(pollset_, &ctx->pfd);
+        apr_pollset_add(ctx->ps, &ctx->pfd);
     }
     
     apr_thread_mutex_unlock(ctx->mx);
@@ -358,11 +382,14 @@ void poll_on_read(context_t * ctx, const apr_pollfd_t *pfd) {
         }
     } else if (status == APR_EOF) {
         LOG_WARN("received apr eof, what to do?");
-        apr_pollset_remove(pollset_, &ctx->pfd);
+        apr_pollset_remove(ctx->ps, &ctx->pfd);
     } else if (status == APR_ECONNRESET) {
         LOG_WARN("oops, seems that i just lost a buddy");
         // TODO [improve] you may retry connect
-        apr_pollset_remove(pollset_, &ctx->pfd);
+        apr_pollset_remove(ctx->ps, &ctx->pfd);
+    } else if (status == APR_EAGAIN) {
+        LOG_ERROR("socket busy, resource temporarily unavailable.");
+        // do nothing.
     } else {
         printf("%s\n", apr_strerror(status, malloc(100), 100));
         SAFE_ASSERT(0);
@@ -387,18 +414,16 @@ void poll_on_accept(server_t *r) {
     ctx->pfd.desc.s = ns;
     ctx->pfd.client_data = ctx;
     r->ctxs[r->sz_ctxs++] = ctx;
-    apr_pollset_add(pollset_, &ctx->pfd);
+    apr_pollset_add(ctx->ps, &ctx->pfd);
 }
 
 void* APR_THREAD_FUNC start_poll(apr_thread_t *t, void *arg) {
-/*
-    apr_pollset_t *pollset = arg;
-*/
+    apr_pollset_t *ps = arg;
     apr_status_t status = APR_SUCCESS;
     while (!exit_) {
         int num = 0;
         const apr_pollfd_t *ret_pfd;
-        status = apr_pollset_poll(pollset_, 100 * 1000, &num, &ret_pfd);
+        status = apr_pollset_poll(ps, 100 * 1000, &num, &ret_pfd);
         if (status == APR_SUCCESS) {
             if (num <=0 ) {
                 LOG_ERROR("poll error. poll num le 0.");
@@ -449,7 +474,7 @@ void server_start(server_t* s) {
     server_ = s;
     apr_pollfd_t pfd = {s->com.mp, APR_POLL_SOCKET, APR_POLLIN, 0, {NULL}, NULL};
     pfd.desc.s = s->com.s;
-    apr_pollset_add(pollset_, &pfd);
+    apr_pollset_add(s->ctx->ps, &pfd);
 }
 
 void client_connect(client_t *c) {
@@ -473,16 +498,17 @@ void client_connect(client_t *c) {
     LOG_DEBUG("connected socket on remote addr %s, port %d", c->com.ip, c->com.port);
     
     // add to epoll
-    while (pollset_ == NULL) {
+    context_t *ctx = c->ctx;
+    while (ctx->ps == NULL) {
         // not inited yet, just wait.
     }
-    context_t *ctx = c->ctx;
     ctx->s = c->com.s;
     apr_pollfd_t pfd = {ctx->mp, APR_POLL_SOCKET, APR_POLLIN, 0, {NULL}, NULL};
     ctx->pfd = pfd;
     ctx->pfd.desc.s = ctx->s;
     ctx->pfd.client_data = ctx;
-    status = apr_pollset_add(pollset_, &ctx->pfd);
+   // status = apr_pollset_add(pollset_, &ctx->pfd);
+    status = apr_pollset_add(ctx->ps, &ctx->pfd);
     SAFE_ASSERT(status == APR_SUCCESS);
 }
 
