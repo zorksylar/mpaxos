@@ -18,6 +18,7 @@ extern "C" {
 #include <pthread.h>
 #include <apr_hash.h>
 #include <apr_thread_mutex.h>
+#include <apr_thread_proc.h>
 #include <apr_atomic.h>
 
 #include "comm.h"

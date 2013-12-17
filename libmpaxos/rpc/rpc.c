@@ -75,6 +75,8 @@ void rpc_destroy() {
 apr_pollset_t* next_pollset() {
     static volatile apr_uint32_t mark = 0;
     uint32_t i = apr_atomic_inc32(&mark);
+    i %= SZ_POLLSETS;
+    LOG_INFO("next pollset %i", i);
     return pollsets_[i];
 }
 
@@ -399,7 +401,9 @@ void poll_on_read(context_t * ctx, const apr_pollfd_t *pfd) {
 void poll_on_accept(server_t *r) {
     apr_status_t status = APR_SUCCESS;
     apr_socket_t *ns = NULL;
+    apr_socket_t *sock_listen = r->com.s;
     status = apr_socket_accept(&ns, r->com.s, r->com.mp);
+    LOG_INFO("accept on fd %x", sock_listen->socketdes);
     if (status != APR_SUCCESS) {
         LOG_ERROR("recvr accept error.");
         LOG_ERROR("%s", apr_strerror(status, calloc(100, 1), 100));

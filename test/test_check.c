@@ -35,6 +35,7 @@ Suite *check_suite (void) {
     
     TCase *tc_mpr = tcase_create("MPR");
     tcase_add_test(tc_mpr, mpr_hash);
+    tcase_set_timeout(tc_mpr, 0);
     suite_add_tcase(s, tc_mpr);
 
     TCase *tc_proto = tcase_create("Protobuf");
