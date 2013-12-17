@@ -16,7 +16,7 @@
 
 #define MAX_ON_READ_THREADS 1
 #define POLLSET_NUM 1000
-#define SZ_POLLSETS 1
+#define SZ_POLLSETS 10
 
 static apr_pool_t *mp_rpc_ = NULL; 
 static server_t *server_ = NULL;
@@ -86,7 +86,7 @@ void client_create(client_t** c) {
     apr_pool_create(&client->com.mp, NULL);
     context_t *ctx = context_gen(&(*c)->com);
     (*c)->ctx = ctx;
-    mpr_hash_create(&(*c)->com.ht);
+    mpr_hash_create_ex(&(*c)->com.ht, 0);
 
 }
 
@@ -101,7 +101,7 @@ void server_create(server_t** s) {
 
     apr_status_t status = APR_SUCCESS;
     apr_pool_create(&server->com.mp, NULL);
-    mpr_hash_create(&server->com.ht);
+    mpr_hash_create_ex(&server->com.ht, 0);
     // FIXME a fixed size is wrong
     server->sz_ctxs = 0; 
     server->ctxs = apr_pcalloc(server->com.mp, sizeof(context_t **) * 100);
@@ -389,6 +389,7 @@ void poll_on_read(context_t * ctx, const apr_pollfd_t *pfd) {
     } else if (status == APR_EOF) {
         LOG_WARN("received apr eof, what to do?");
         apr_pollset_remove(ctx->ps, &ctx->pfd);
+        context_destroy(ctx);
     } else if (status == APR_ECONNRESET) {
         LOG_WARN("oops, seems that i just lost a buddy");
         // TODO [improve] you may retry connect
@@ -421,7 +422,9 @@ void poll_on_accept(server_t *r) {
     ctx->pfd = pfd;
     ctx->pfd.desc.s = ns;
     ctx->pfd.client_data = ctx;
-    r->ctxs[r->sz_ctxs++] = ctx;
+
+    // FIXME can context be managed by itself?
+    //r->ctxs[r->sz_ctxs++] = ctx;
     apr_pollset_add(ctx->ps, &ctx->pfd);
 }
 

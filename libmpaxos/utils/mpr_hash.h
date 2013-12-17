@@ -19,11 +19,15 @@
 extern "C" {
 #endif
 
+#define MPR_HASH_THREAD_SAFE (0x1)
+
 typedef struct {
     apr_pool_t *mp;
-//    apr_thread_mutex_t *mx;
+    apr_thread_mutex_t *mx;
     apr_thread_rwlock_t *rwl;
     apr_hash_t *ht;
+
+    int is_thread_safe;
 } mpr_hash_t;    
 
 typedef struct {
@@ -33,13 +37,19 @@ typedef struct {
     size_t sz_value;
 } mpr_hash_value_t;
 
-static void mpr_hash_create(mpr_hash_t **hash) {
+
+static void mpr_hash_create_ex(mpr_hash_t **hash, int flag) {
     *hash = calloc(sizeof(mpr_hash_t), 1);
     apr_initialize();
     apr_pool_create(&(*hash)->mp, NULL);
     (*hash)->ht = apr_hash_make((*hash)->mp);
-//    apr_thread_mutex_create(&(*hash)->mx, APR_THREAD_MUTEX_UNNESTED, (*hash)->mp);
+    apr_thread_mutex_create(&(*hash)->mx, APR_THREAD_MUTEX_UNNESTED, (*hash)->mp);
     apr_thread_rwlock_create(&(*hash)->rwl, (*hash)->mp);
+    (*hash)->is_thread_safe = flag & MPR_HASH_THREAD_SAFE;
+}
+
+static void mpr_hash_create(mpr_hash_t **hash) {
+    mpr_hash_create_ex(hash, MPR_HASH_THREAD_SAFE); 
 }
 
 static void mpr_hash_destroy(mpr_hash_t *hash) {
@@ -98,8 +108,10 @@ static void mpr_hash_set(mpr_hash_t *hash, const void *key, size_t sz_key,
 
 static void mpr_hash_get(mpr_hash_t *hash, const void *key, size_t sz_key, 
         void **value, size_t *sz_value) {
-    //apr_thread_mutex_lock(hash->mx);
-    apr_thread_rwlock_rdlock(hash->rwl);
+//    apr_thread_mutex_lock(hash->mx);
+    if (hash->is_thread_safe) {
+        apr_thread_rwlock_rdlock(hash->rwl);
+    }
     
     mpr_hash_value_t *v_old = apr_hash_get(hash->ht, key, sz_key);
     if (v_old != NULL) {
@@ -110,8 +122,10 @@ static void mpr_hash_get(mpr_hash_t *hash, const void *key, size_t sz_key,
         *sz_value = 0;
     }
     
+    if (hash->is_thread_safe) {
+        apr_thread_rwlock_unlock(hash->rwl);    
+    }
 //    apr_thread_mutex_unlock(hash->mx);    
-    apr_thread_rwlock_unlock(hash->rwl);    
 }
 
 

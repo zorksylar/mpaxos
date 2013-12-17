@@ -35,7 +35,7 @@ START_TEST(mpr_hash) {
     uint64_t k4 = 8; 
     int t = 10;
 
-    mpr_hash_create(&ht);
+    mpr_hash_create_ex(&ht, 0);
     mpr_hash_set(ht, &k1, sizeof(uint8_t), &t, sizeof(int)) ;
     mpr_hash_set(ht, &k2, sizeof(uint16_t), &t, sizeof(int)); 
     mpr_hash_set(ht, &k3, sizeof(uint32_t), &t, sizeof(int)); 
@@ -103,7 +103,7 @@ START_TEST(mpr_hash) {
     // different threads access different hash tables.
     mpr_hash_t *hts[N_THREAD];
     for (int i = 0; i < N_THREAD; i++) {
-        mpr_hash_create(&hts[i]);
+        mpr_hash_create_ex(&hts[i], 0);
         for (uint32_t j = 0; j < N_HASH_ACCESS; j++) {
             mpr_hash_set(hts[i], &j, sizeof(uint32_t), &j, sizeof(uint32_t));
         }
