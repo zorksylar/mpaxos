@@ -16,7 +16,7 @@
 
 #define MAX_ON_READ_THREADS 1
 #define POLLSET_NUM 1000
-#define SZ_POLLSETS 32
+#define SZ_POLLSETS 1
 
 static apr_pool_t *mp_rpc_ = NULL; 
 static server_t *server_ = NULL;
@@ -102,8 +102,9 @@ void server_create(server_t** s) {
     apr_status_t status = APR_SUCCESS;
     apr_pool_create(&server->com.mp, NULL);
     mpr_hash_create(&server->com.ht);
+    // FIXME a fixed size is wrong
     server->sz_ctxs = 0; 
-    server->ctxs = apr_pcalloc(server->com.mp, sizeof(context_t **) * 10);
+    server->ctxs = apr_pcalloc(server->com.mp, sizeof(context_t **) * 100);
     
     context_t *ctx = context_gen(&(*s)->com);
     (*s)->ctx = ctx;
@@ -256,8 +257,11 @@ void poll_on_write(context_t *ctx, const apr_pollfd_t *pfd) {
     size_t n = ctx->buf_send.offset_end - ctx->buf_send.offset_begin;
     if (n > 0) {
         status = apr_socket_send(pfd->desc.s, (char *)buf, &n);
+        if (status != APR_SUCCESS) {
+            LOG_ERROR("write error: %s", apr_strerror(status, malloc(100), 100));
+            SAFE_ASSERT(status == APR_SUCCESS);
+        }
         stat_on_write(n);
-        SAFE_ASSERT(status == APR_SUCCESS);
         ctx->buf_send.offset_begin += n;
     } else if (n == 0){
         LOG_WARN("nothing to write? how so?");
@@ -401,9 +405,9 @@ void poll_on_read(context_t * ctx, const apr_pollfd_t *pfd) {
 void poll_on_accept(server_t *r) {
     apr_status_t status = APR_SUCCESS;
     apr_socket_t *ns = NULL;
-    apr_socket_t *sock_listen = r->com.s;
+//    apr_socket_t *sock_listen = r->com.s;
     status = apr_socket_accept(&ns, r->com.s, r->com.mp);
-    LOG_INFO("accept on fd %x", sock_listen->socketdes);
+//    LOG_INFO("accept on fd %x", sock_listen->socketdes);
     if (status != APR_SUCCESS) {
         LOG_ERROR("recvr accept error.");
         LOG_ERROR("%s", apr_strerror(status, calloc(100, 1), 100));
