@@ -76,7 +76,7 @@ apr_pollset_t* next_pollset() {
     static volatile apr_uint32_t mark = 0;
     uint32_t i = apr_atomic_inc32(&mark);
     i %= SZ_POLLSETS;
-    LOG_INFO("next pollset %i", i);
+    LOG_TRACE("next pollset %i", i);
     return pollsets_[i];
 }
 
@@ -91,6 +91,7 @@ void client_create(client_t** c) {
 }
 
 void client_destroy(client_t* c) {
+    // FIXME close the socket if not.
     context_destroy(c->ctx);
     free(c);
 }
@@ -112,10 +113,10 @@ void server_create(server_t** s) {
 
 void server_destroy(server_t *s) {
     mpr_hash_destroy(s->com.ht);
-    for (int i = 0; i < s->sz_ctxs; i++) {
-        context_t *ctx = s->ctxs[i];
-        context_destroy(ctx);
-    }
+    //for (int i = 0; i < s->sz_ctxs; i++) {
+    //    context_t *ctx = s->ctxs[i];
+    //    context_destroy(ctx);
+    //}
     context_destroy(s->ctx);
     apr_pool_destroy(s->com.mp);
     free(s);
@@ -256,9 +257,15 @@ void poll_on_write(context_t *ctx, const apr_pollfd_t *pfd) {
     uint8_t *buf = ctx->buf_send.buf + ctx->buf_send.offset_begin;
     size_t n = ctx->buf_send.offset_end - ctx->buf_send.offset_begin;
     if (n > 0) {
+        int tmp = n;
         status = apr_socket_send(pfd->desc.s, (char *)buf, &n);
-        if (status != APR_SUCCESS) {
-            LOG_ERROR("write error: %s", apr_strerror(status, malloc(100), 100));
+        if (status == APR_SUCCESS) {
+
+        } else if (status == APR_EPIPE) {
+            LOG_WARN("epipe error, is this a mac os?");
+        } else if (status != APR_SUCCESS) {
+            LOG_ERROR("error code: %d, error message: %s",(int)status, apr_strerror(status, malloc(100), 100));
+            LOG_ERROR("try to write %d bytes in write buffer.", tmp);
             SAFE_ASSERT(status == APR_SUCCESS);
         }
         stat_on_write(n);
@@ -275,8 +282,11 @@ void poll_on_write(context_t *ctx, const apr_pollfd_t *pfd) {
         apr_pollset_remove(ctx->ps, &ctx->pfd);
         ctx->pfd.reqevents = APR_POLLIN;
         apr_pollset_add(ctx->ps, &ctx->pfd);
+    } else {
+        apr_pollset_remove(ctx->ps, &ctx->pfd);
+        ctx->pfd.reqevents = APR_POLLIN | APR_POLLOUT;
+        apr_pollset_add(ctx->ps, &ctx->pfd);
     }
-    
     apr_thread_mutex_unlock(ctx->mx);
 }
 
@@ -398,7 +408,7 @@ void poll_on_read(context_t * ctx, const apr_pollfd_t *pfd) {
         LOG_ERROR("socket busy, resource temporarily unavailable.");
         // do nothing.
     } else {
-        printf("%s\n", apr_strerror(status, malloc(100), 100));
+        LOG_ERROR("unkown error on poll reading. %s\n", apr_strerror(status, malloc(100), 100));
         SAFE_ASSERT(0);
     }
 }
@@ -416,6 +426,7 @@ void poll_on_accept(server_t *r) {
     }
     apr_socket_opt_set(ns, APR_SO_NONBLOCK, 1);
     apr_socket_opt_set(ns, APR_TCP_NODELAY, 1);
+    apr_socket_opt_set(ns, APR_SO_KEEPALIVE, 1);
     context_t *ctx = context_gen(&r->com);
     ctx->s = ns;
     apr_pollfd_t pfd = {ctx->mp, APR_POLL_SOCKET, APR_POLLIN, 0, {NULL}, NULL};
@@ -461,7 +472,7 @@ void* APR_THREAD_FUNC start_poll(apr_thread_t *t, void *arg) {
             }
         } else if (status == APR_EINTR) {
             // the signal we get when process exit, wakeup, or add in and write.
-            LOG_DEBUG("the receiver epoll exits?");
+            LOG_WARN("the receiver epoll exits?");
             continue;
         } else if (status == APR_TIMEUP) {
             // debug.
@@ -497,6 +508,7 @@ void client_connect(client_t *c) {
     apr_socket_opt_set(c->com.s, APR_SO_NONBLOCK, 1);
     // apr_socket_opt_set(s->s, APR_SO_REUSEADDR, 1);/* this is useful for a server(socket listening) process */
     apr_socket_opt_set(c->com.s, APR_TCP_NODELAY, 1);
+    apr_socket_opt_set(c->com.s, APR_SO_KEEPALIVE, 1);
 
     //printf("Default sending buffer size %d.\n", send_buf_size);
     apr_status_t status = APR_SUCCESS;

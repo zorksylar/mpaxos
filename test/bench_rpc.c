@@ -41,6 +41,7 @@ rpc_state* add_cb(rpc_state *in) {
     uint32_t j = apr_atomic_inc32(&ct_rpc_);
 
     if (j + 1 == N_RPC * n_client_) {
+        printf("hahaha\n");
         tm_end_ = apr_time_now();
         apr_thread_mutex_lock(mx_rpc_);
         apr_thread_cond_signal(cd_rpc_);
@@ -85,7 +86,7 @@ void* APR_THREAD_FUNC client_thread(apr_thread_t *th, void *v) {
     client_regfun(client, ADD, add_cb);
     tm_begin_ = apr_time_now();
     client_connect(client);
-    printf("client connected.\n");
+//    printf("client connected.\n");
     for (int i = 0; i < N_RPC; i++) {
         struct_add sa;
         sa.a = 1;
@@ -96,7 +97,25 @@ void* APR_THREAD_FUNC client_thread(apr_thread_t *th, void *v) {
     return NULL;
 }
 
+void sig_handler(int signo) {
+    char *s = strsignal(signo);
+    printf("received signal. type: %s\n", s);
+    if (signo == SIGINT) {
+        exit(0);
+    } else if (signo == SIGABRT) {
+        exit(0);
+    } else {
+        //do nothing.
+    }
+}
+
 int main(int argc, char **argv) {
+    for (int i=1; i<NSIG; i++) {
+        //if (signal(SIGINT, sig_handler) == SIG_ERR) printf("\ncan't catch SIGINT\n");
+        if (signal(i, sig_handler) == SIG_ERR) printf("\ncan't catch SIGINT\n");
+    }
+    signal(SIGPIPE, SIG_IGN);
+
     apr_initialize();
     apr_pool_create(&mp_rpc_, NULL);
     apr_thread_cond_create(&cd_rpc_, mp_rpc_);

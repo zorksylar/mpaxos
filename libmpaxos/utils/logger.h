@@ -9,6 +9,8 @@
 #ifndef LOGGER_H_
 #define LOGGER_H_
 
+#include <apr_time.h>
+
 #define LOG_LEVEL_OFF    0
 #define LOG_LEVEL_FATAL  1
 #define LOG_LEVEL_ERROR  2
@@ -96,8 +98,13 @@
 static void log_msg(const char *sz_level, const char* file, int line,
 		const char* func, const char* fmt, ...) {
     // printf is thread safe.
-    char *buf = calloc((strlen(fmt) + 10), sizeof(char));
+    apr_time_t t = apr_time_now();
+    char *buf = calloc((strlen(fmt) + 30), sizeof(char));
+    char timebuf[20];
+    sprintf(timebuf, "%lld", t);
     strcat(buf, sz_level);
+    strcat(buf, " ");
+    strcat(buf, timebuf);
     strcat(buf, " ");
     strcat(buf, fmt);
     strcat(buf, "\n");
