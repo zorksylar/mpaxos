@@ -57,6 +57,8 @@ typedef struct {
     slotid_t *sids;
     uint8_t *data;
     size_t sz_data;
+    uint8_t *data_c;
+    size_t sz_data_c;
     void* cb_para;
     uint32_t n_retry;   // how many times it has been retried.
     apr_time_t tm_start; 

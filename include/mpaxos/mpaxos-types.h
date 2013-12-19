@@ -28,6 +28,6 @@ typedef struct {
     uint32_t len;
 } value_t;
 
-typedef void(*mpaxos_cb_t)(groupid_t*, size_t, slotid_t*, uint8_t *, size_t, void *para);
+typedef void(*mpaxos_cb_t)(groupid_t*, size_t, slotid_t*, uint8_t *, size_t, uint8_t *, size_t, void *para);
 
 #endif /* MPAXOS_TYPES_H_ */

@@ -178,6 +178,49 @@ void   mpaxos__msg_header__free_unpacked
   PROTOBUF_C_ASSERT (message->base.descriptor == &mpaxos__msg_header__descriptor);
   protobuf_c_message_free_unpacked ((ProtobufCMessage*)message, allocator);
 }
+void   mpaxos__coded_value_t__init
+                     (Mpaxos__CodedValueT         *message)
+{
+  static Mpaxos__CodedValueT init_value = MPAXOS__CODED_VALUE_T__INIT;
+  *message = init_value;
+}
+size_t mpaxos__coded_value_t__get_packed_size
+                     (const Mpaxos__CodedValueT *message)
+{
+  PROTOBUF_C_ASSERT (message->base.descriptor == &mpaxos__coded_value_t__descriptor);
+  return protobuf_c_message_get_packed_size ((const ProtobufCMessage*)(message));
+}
+size_t mpaxos__coded_value_t__pack
+                     (const Mpaxos__CodedValueT *message,
+                      uint8_t       *out)
+{
+  PROTOBUF_C_ASSERT (message->base.descriptor == &mpaxos__coded_value_t__descriptor);
+  return protobuf_c_message_pack ((const ProtobufCMessage*)message, out);
+}
+size_t mpaxos__coded_value_t__pack_to_buffer
+                     (const Mpaxos__CodedValueT *message,
+                      ProtobufCBuffer *buffer)
+{
+  PROTOBUF_C_ASSERT (message->base.descriptor == &mpaxos__coded_value_t__descriptor);
+  return protobuf_c_message_pack_to_buffer ((const ProtobufCMessage*)message, buffer);
+}
+Mpaxos__CodedValueT *
+       mpaxos__coded_value_t__unpack
+                     (ProtobufCAllocator  *allocator,
+                      size_t               len,
+                      const uint8_t       *data)
+{
+  return (Mpaxos__CodedValueT *)
+     protobuf_c_message_unpack (&mpaxos__coded_value_t__descriptor,
+                                allocator, len, data);
+}
+void   mpaxos__coded_value_t__free_unpacked
+                     (Mpaxos__CodedValueT *message,
+                      ProtobufCAllocator *allocator)
+{
+  PROTOBUF_C_ASSERT (message->base.descriptor == &mpaxos__coded_value_t__descriptor);
+  protobuf_c_message_free_unpacked ((ProtobufCMessage*)message, allocator);
+}
 void   mpaxos__proposal__init
                      (Mpaxos__Proposal         *message)
 {
@@ -876,7 +919,97 @@ const ProtobufCMessageDescriptor mpaxos__msg_header__descriptor =
   (ProtobufCMessageInit) mpaxos__msg_header__init,
   NULL,NULL,NULL    /* reserved[123] */
 };
-static const ProtobufCFieldDescriptor mpaxos__proposal__field_descriptors[4] =
+static const ProtobufCFieldDescriptor mpaxos__coded_value_t__field_descriptors[5] =
+{
+  {
+    "sz",
+    1,
+    PROTOBUF_C_LABEL_REQUIRED,
+    PROTOBUF_C_TYPE_UINT32,
+    0,   /* quantifier_offset */
+    PROTOBUF_C_OFFSETOF(Mpaxos__CodedValueT, sz),
+    NULL,
+    NULL,
+    0,            /* packed */
+    0,NULL,NULL    /* reserved1,reserved2, etc */
+  },
+  {
+    "k",
+    2,
+    PROTOBUF_C_LABEL_REQUIRED,
+    PROTOBUF_C_TYPE_UINT32,
+    0,   /* quantifier_offset */
+    PROTOBUF_C_OFFSETOF(Mpaxos__CodedValueT, k),
+    NULL,
+    NULL,
+    0,            /* packed */
+    0,NULL,NULL    /* reserved1,reserved2, etc */
+  },
+  {
+    "n",
+    3,
+    PROTOBUF_C_LABEL_REQUIRED,
+    PROTOBUF_C_TYPE_UINT32,
+    0,   /* quantifier_offset */
+    PROTOBUF_C_OFFSETOF(Mpaxos__CodedValueT, n),
+    NULL,
+    NULL,
+    0,            /* packed */
+    0,NULL,NULL    /* reserved1,reserved2, etc */
+  },
+  {
+    "id",
+    4,
+    PROTOBUF_C_LABEL_REQUIRED,
+    PROTOBUF_C_TYPE_UINT32,
+    0,   /* quantifier_offset */
+    PROTOBUF_C_OFFSETOF(Mpaxos__CodedValueT, id),
+    NULL,
+    NULL,
+    0,            /* packed */
+    0,NULL,NULL    /* reserved1,reserved2, etc */
+  },
+  {
+    "value",
+    5,
+    PROTOBUF_C_LABEL_REQUIRED,
+    PROTOBUF_C_TYPE_BYTES,
+    0,   /* quantifier_offset */
+    PROTOBUF_C_OFFSETOF(Mpaxos__CodedValueT, value),
+    NULL,
+    NULL,
+    0,            /* packed */
+    0,NULL,NULL    /* reserved1,reserved2, etc */
+  },
+};
+static const unsigned mpaxos__coded_value_t__field_indices_by_name[] = {
+  3,   /* field[3] = id */
+  1,   /* field[1] = k */
+  2,   /* field[2] = n */
+  0,   /* field[0] = sz */
+  4,   /* field[4] = value */
+};
+static const ProtobufCIntRange mpaxos__coded_value_t__number_ranges[1 + 1] =
+{
+  { 1, 0 },
+  { 0, 5 }
+};
+const ProtobufCMessageDescriptor mpaxos__coded_value_t__descriptor =
+{
+  PROTOBUF_C_MESSAGE_DESCRIPTOR_MAGIC,
+  "mpaxos.coded_value_t",
+  "CodedValueT",
+  "Mpaxos__CodedValueT",
+  "mpaxos",
+  sizeof(Mpaxos__CodedValueT),
+  5,
+  mpaxos__coded_value_t__field_descriptors,
+  mpaxos__coded_value_t__field_indices_by_name,
+  1,  mpaxos__coded_value_t__number_ranges,
+  (ProtobufCMessageInit) mpaxos__coded_value_t__init,
+  NULL,NULL,NULL    /* reserved[123] */
+};
+static const ProtobufCFieldDescriptor mpaxos__proposal__field_descriptors[5] =
 {
   {
     "rids",
@@ -903,20 +1036,8 @@ static const ProtobufCFieldDescriptor mpaxos__proposal__field_descriptors[4] =
     0,NULL,NULL    /* reserved1,reserved2, etc */
   },
   {
-    "value",
-    3,
-    PROTOBUF_C_LABEL_REQUIRED,
-    PROTOBUF_C_TYPE_BYTES,
-    0,   /* quantifier_offset */
-    PROTOBUF_C_OFFSETOF(Mpaxos__Proposal, value),
-    NULL,
-    NULL,
-    0,            /* packed */
-    0,NULL,NULL    /* reserved1,reserved2, etc */
-  },
-  {
     "nid",
-    4,
+    3,
     PROTOBUF_C_LABEL_REQUIRED,
     PROTOBUF_C_TYPE_UINT32,
     0,   /* quantifier_offset */
@@ -926,17 +1047,42 @@ static const ProtobufCFieldDescriptor mpaxos__proposal__field_descriptors[4] =
     0,            /* packed */
     0,NULL,NULL    /* reserved1,reserved2, etc */
   },
+  {
+    "value",
+    4,
+    PROTOBUF_C_LABEL_OPTIONAL,
+    PROTOBUF_C_TYPE_BYTES,
+    PROTOBUF_C_OFFSETOF(Mpaxos__Proposal, has_value),
+    PROTOBUF_C_OFFSETOF(Mpaxos__Proposal, value),
+    NULL,
+    NULL,
+    0,            /* packed */
+    0,NULL,NULL    /* reserved1,reserved2, etc */
+  },
+  {
+    "coded_value",
+    5,
+    PROTOBUF_C_LABEL_OPTIONAL,
+    PROTOBUF_C_TYPE_MESSAGE,
+    0,   /* quantifier_offset */
+    PROTOBUF_C_OFFSETOF(Mpaxos__Proposal, coded_value),
+    &mpaxos__coded_value_t__descriptor,
+    NULL,
+    0,            /* packed */
+    0,NULL,NULL    /* reserved1,reserved2, etc */
+  },
 };
 static const unsigned mpaxos__proposal__field_indices_by_name[] = {
-  3,   /* field[3] = nid */
+  4,   /* field[4] = coded_value */
+  2,   /* field[2] = nid */
   0,   /* field[0] = rids */
   1,   /* field[1] = tid */
-  2,   /* field[2] = value */
+  3,   /* field[3] = value */
 };
 static const ProtobufCIntRange mpaxos__proposal__number_ranges[1 + 1] =
 {
   { 1, 0 },
-  { 0, 4 }
+  { 0, 5 }
 };
 const ProtobufCMessageDescriptor mpaxos__proposal__descriptor =
 {
@@ -946,7 +1092,7 @@ const ProtobufCMessageDescriptor mpaxos__proposal__descriptor =
   "Mpaxos__Proposal",
   "mpaxos",
   sizeof(Mpaxos__Proposal),
-  4,
+  5,
   mpaxos__proposal__field_descriptors,
   mpaxos__proposal__field_indices_by_name,
   1,  mpaxos__proposal__number_ranges,
