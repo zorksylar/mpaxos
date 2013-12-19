@@ -359,34 +359,22 @@ int mpaxos_accept(txn_info_t *tinfo) {
 	/*------------------------------- phase II start --------------------------*/
     LOG_DEBUG("start phase 2 accept.");
  
+    proposal_t *prop = NULL;
     if (tinfo->prop_max != NULL) {
         // for now it should be null.
-        proposal_t prop = MPAXOS__PROPOSAL__INIT;
-        prop.n_rids = tinfo->prop_max->n_rids;
-        prop.rids = malloc(prop.n_rids * sizeof (roundid_t **));
-        for (int i = 0; i< prop.n_rids; i++) {
-            roundid_t *r = malloc(sizeof(roundid_t));
-            mpaxos__roundid_t__init(r);
-            r->gid = tinfo->prop_max->rids[i]->gid;
-            r->sid = tinfo->prop_max->rids[i]->sid;
-            r->bid = tinfo->req->n_retry + 1;
-            prop.rids[i] = r;
-        }
-        prop.value = tinfo->prop_max->value;
-        prop.nid = get_local_nid();
-        broadcast_msg_accept(tinfo, &prop);
+        prop = tinfo->prop_max;
     } else {
-        proposal_t *prop_self = apr_palloc(tinfo->mp, sizeof(proposal_t));
-        tinfo->prop_self = prop_self;
-        mpaxos__proposal__init(prop_self);
-        prop_self->n_rids = tinfo->sz_rids;
-        prop_self->rids = tinfo->rids;
-        prop_self->value.data = tinfo->req->data;
-        prop_self->value.len = tinfo->req->sz_data;
-        prop_self->nid = get_local_nid();
-        broadcast_msg_accept(tinfo, prop_self);
+        prop = apr_palloc(tinfo->mp, sizeof(proposal_t));
+        tinfo->prop_self = prop;
+        mpaxos__proposal__init(prop);
+        prop->n_rids = tinfo->sz_rids;
+        prop->rids = tinfo->rids;
+        prop->value.data = tinfo->req->data;
+        prop->value.len = tinfo->req->sz_data;
+        prop->nid = get_local_nid();
     }
-    
+    broadcast_msg_accept(tinfo, prop);
+
 	/*----------------------------- phase II end ----------------------------*/
 	apr_thread_mutex_unlock(tinfo->mx);
 	return 0;
