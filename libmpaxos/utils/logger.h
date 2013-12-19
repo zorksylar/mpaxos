@@ -99,9 +99,10 @@ static void log_msg(const char *sz_level, const char* file, int line,
 		const char* func, const char* fmt, ...) {
     // printf is thread safe.
     apr_time_t t = apr_time_now();
+    int ti = (int)(t / 1000);
     char *buf = calloc((strlen(fmt) + 30), sizeof(char));
     char timebuf[20];
-    sprintf(timebuf, "%lld", t);
+    sprintf(timebuf, "%d", ti);
     strcat(buf, sz_level);
     strcat(buf, " ");
     strcat(buf, timebuf);

@@ -15,8 +15,8 @@
 #include "utils/mpr_hash.h"
 
 #define MAX_ON_READ_THREADS 1
-#define POLLSET_NUM 1000
-#define SZ_POLLSETS 10
+#define POLLSET_NUM 100
+#define SZ_POLLSETS 64
 
 static apr_pool_t *mp_rpc_ = NULL; 
 static server_t *server_ = NULL;
@@ -174,6 +174,7 @@ context_t *context_gen(rpc_common_t *com) {
     ctx->buf_send.offset_end = 0;
     ctx->com = com;
     ctx->ps = next_pollset();
+    ctx->n_rpc = 0;
     //ctx->on_recv = on_recv;
    
     apr_pool_create(&ctx->mp, NULL);
@@ -192,8 +193,8 @@ void add_write_buf_to_ctx(context_t *ctx, funid_t type,
     const uint8_t *buf, size_t sz_buf) {
     apr_thread_mutex_lock(ctx->mx);
     
-    apr_atomic_add32(&sz_data_tosend_, sizeof(funid_t) + sz_buf + sizeof(size_t));
-    apr_atomic_inc32(&n_data_sent_);
+//    apr_atomic_add32(&sz_data_tosend_, sizeof(funid_t) + sz_buf + sizeof(size_t));
+//    apr_atomic_inc32(&n_data_sent_);
     
     // realloc the write buf if not enough.
     if (sz_buf + sizeof(size_t) + sizeof(funid_t)
@@ -247,7 +248,7 @@ void reply_to(read_state_t *state) {
 void stat_on_write(size_t sz) {
     LOG_TRACE("sent data size: %d", sz);
     sz_data_sent_ += sz;
-    apr_atomic_sub32(&sz_data_tosend_, sz);
+//    apr_atomic_sub32(&sz_data_tosend_, sz);
 }
 
 void poll_on_write(context_t *ctx, const apr_pollfd_t *pfd) {
@@ -354,13 +355,14 @@ void poll_on_read(context_t * ctx, const apr_pollfd_t *pfd) {
                     rpc_state *state = malloc(sizeof(rpc_state));
                     state->sz = sz_msg - sizeof(funid_t);
                     state->buf = malloc(sz_msg);
+                    state->ctx = ctx;
                     memcpy(state->buf, buf + sizeof(funid_t), state->sz);
 //                    state->ctx = ctx;
 /*
                     apr_thread_pool_push(tp_on_read_, (*(ctx->on_recv)), (void*)state, 0, NULL);
 //                    mpr_thread_pool_push(tp_read_, (void*)state);
 */
-                    apr_atomic_inc32(&n_data_recv_);
+//                    apr_atomic_inc32(&n_data_recv_);
                     //(*(ctx->on_recv))(NULL, state);
                     // FIXME call
                     rpc_state* (**fun)(void*) = NULL;
@@ -368,6 +370,7 @@ void poll_on_read(context_t * ctx, const apr_pollfd_t *pfd) {
                     mpr_hash_get(ctx->com->ht, &fid, sizeof(funid_t), (void**)&fun, &sz);
                     SAFE_ASSERT(fun != NULL);
                     LOG_TRACE("going to call function %x", *fun);
+                    ctx->n_rpc++;
                     rpc_state *ret_s = (**fun)(state);
                     free(state->buf);
                     free(state);

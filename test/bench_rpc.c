@@ -8,7 +8,7 @@
 static apr_pool_t *mp_rpc_ = NULL;
 static apr_thread_cond_t *cd_rpc_ = NULL;
 static apr_thread_mutex_t *mx_rpc_ = NULL;
-static volatile apr_uint32_t ct_rpc_ = 0;
+static volatile apr_uint32_t n_rpc_ = 0;
 static char* addr;
 static int port;
 
@@ -38,15 +38,19 @@ rpc_state* add(rpc_state *in) {
 rpc_state* add_cb(rpc_state *in) {
     // Do nothing
     LOG_DEBUG("client callback exceuted.\n");
-    uint32_t j = apr_atomic_inc32(&ct_rpc_);
 
-    if (j + 1 == N_RPC * n_client_) {
-        printf("hahaha\n");
-        tm_end_ = apr_time_now();
-        apr_thread_mutex_lock(mx_rpc_);
-        apr_thread_cond_signal(cd_rpc_);
-        apr_thread_mutex_unlock(mx_rpc_);
+    if (in->ctx->n_rpc == N_RPC) {
+        uint32_t j = apr_atomic_add32(&n_rpc_, N_RPC);
+        if (j + N_RPC == N_RPC * n_client_) {
+            printf("hahaha\n");
+            tm_end_ = apr_time_now();
+            apr_thread_mutex_lock(mx_rpc_);
+            apr_thread_cond_signal(cd_rpc_);
+            apr_thread_mutex_unlock(mx_rpc_);
+        }
+          
     }
+
     return NULL;
 }
 
