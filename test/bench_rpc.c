@@ -3,7 +3,7 @@
 #include "rpc/rpc.h"
 #include "mpaxos.pb-c.h"
 
-#define N_RPC (1000000)
+#define N_RPC (100000)
 
 static apr_pool_t *mp_rpc_ = NULL;
 static apr_thread_cond_t *cd_rpc_ = NULL;
@@ -114,10 +114,10 @@ void sig_handler(int signo) {
 }
 
 int main(int argc, char **argv) {
-    for (int i=1; i<NSIG; i++) {
-        //if (signal(SIGINT, sig_handler) == SIG_ERR) printf("\ncan't catch SIGINT\n");
-        if (signal(i, sig_handler) == SIG_ERR) printf("\ncan't catch SIGINT\n");
-    }
+//    for (int i=1; i<NSIG; i++) {
+//        //if (signal(SIGINT, sig_handler) == SIG_ERR) printf("\ncan't catch SIGINT\n");
+//        if (signal(i, sig_handler) == SIG_ERR) printf("\ncan't catch %s\n", strsignal(i));
+//    }
     signal(SIGPIPE, SIG_IGN);
 
     apr_initialize();
@@ -125,6 +125,9 @@ int main(int argc, char **argv) {
     apr_thread_cond_create(&cd_rpc_, mp_rpc_);
     apr_thread_mutex_create(&mx_rpc_, APR_THREAD_MUTEX_UNNESTED, mp_rpc_);
     rpc_init();
+
+    sleep(1);
+    printf("after sleep.\n");
     
     char *s_or_c = argv[1];
     addr = argv[2];
@@ -149,7 +152,6 @@ int main(int argc, char **argv) {
             apr_thread_create(&th, NULL, client_thread, NULL, mp_rpc_);
         }
         printf("rpc triggered for %d adds on %d threads.\n", N_RPC * n_client_, n_client_);
-        
         apr_thread_cond_wait(cd_rpc_, mx_rpc_);
         apr_thread_mutex_unlock(mx_rpc_);
 

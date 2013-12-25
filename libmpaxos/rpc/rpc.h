@@ -32,6 +32,8 @@ typedef struct {
     apr_pollset_t *ps;  
     rpc_common_t *com;
     uint64_t n_rpc;
+    uint64_t sz_recv;
+    uint64_t sz_send;
     
     struct  {
         uint8_t *buf;
