@@ -8,6 +8,7 @@
 #include <apr_network_io.h>
 #include <apr_poll.h>
 #include <errno.h>
+#include <inttypes.h>
 #include "rpc.h"
 #include "utils/logger.h"
 #include "utils/safe_assert.h"
@@ -15,8 +16,8 @@
 #include "utils/mpr_hash.h"
 
 #define MAX_ON_READ_THREADS 1
-#define POLLSET_NUM 1000
-#define SZ_POLLSETS 10
+#define POLLSET_NUM 100
+#define SZ_POLLSETS 64
 
 static apr_pool_t *mp_rpc_ = NULL; 
 static server_t *server_ = NULL;
@@ -76,7 +77,7 @@ apr_pollset_t* next_pollset() {
     static volatile apr_uint32_t mark = 0;
     uint32_t i = apr_atomic_inc32(&mark);
     i %= SZ_POLLSETS;
-    LOG_INFO("next pollset %i", i);
+    LOG_TRACE("next pollset %i", i);
     return pollsets_[i];
 }
 
@@ -85,12 +86,13 @@ void client_create(client_t** c) {
     client_t *client = *c;
     apr_pool_create(&client->com.mp, NULL);
     context_t *ctx = context_gen(&(*c)->com);
-    (*c)->ctx = ctx;
+    client->ctx = ctx;
+    memset(client->com.ip, 0, 100);
     mpr_hash_create_ex(&(*c)->com.ht, 0);
-
 }
 
 void client_destroy(client_t* c) {
+    // FIXME close the socket if not.
     context_destroy(c->ctx);
     free(c);
 }
@@ -112,10 +114,10 @@ void server_create(server_t** s) {
 
 void server_destroy(server_t *s) {
     mpr_hash_destroy(s->com.ht);
-    for (int i = 0; i < s->sz_ctxs; i++) {
-        context_t *ctx = s->ctxs[i];
-        context_destroy(ctx);
-    }
+    //for (int i = 0; i < s->sz_ctxs; i++) {
+    //    context_t *ctx = s->ctxs[i];
+    //    context_destroy(ctx);
+    //}
     context_destroy(s->ctx);
     apr_pool_destroy(s->com.mp);
     free(s);
@@ -151,7 +153,7 @@ void server_bind_listen(server_t *r) {
         printf("%s", apr_strerror(status, malloc(100), 100));
         SAFE_ASSERT(status == APR_SUCCESS);
     }
-    status = apr_socket_listen(r->com.s, 20);
+    status = apr_socket_listen(r->com.s, 10000); // This is important!
     if (status != APR_SUCCESS) {
         LOG_ERROR("cannot listen.");
         printf("%s", apr_strerror(status, malloc(100), 100));
@@ -173,6 +175,9 @@ context_t *context_gen(rpc_common_t *com) {
     ctx->buf_send.offset_end = 0;
     ctx->com = com;
     ctx->ps = next_pollset();
+    ctx->n_rpc = 0;
+    ctx->sz_recv = 0;
+    ctx->sz_send = 0;
     //ctx->on_recv = on_recv;
    
     apr_pool_create(&ctx->mp, NULL);
@@ -182,6 +187,8 @@ context_t *context_gen(rpc_common_t *com) {
 
 void context_destroy(context_t *ctx) {
     apr_pool_destroy(ctx->mp);
+    SAFE_ASSERT(ctx->buf_recv.buf != NULL);
+    SAFE_ASSERT(ctx->buf_send.buf != NULL);
     free(ctx->buf_recv.buf);
     free(ctx->buf_send.buf);
     free(ctx);
@@ -191,8 +198,8 @@ void add_write_buf_to_ctx(context_t *ctx, funid_t type,
     const uint8_t *buf, size_t sz_buf) {
     apr_thread_mutex_lock(ctx->mx);
     
-    apr_atomic_add32(&sz_data_tosend_, sizeof(funid_t) + sz_buf + sizeof(size_t));
-    apr_atomic_inc32(&n_data_sent_);
+//    apr_atomic_add32(&sz_data_tosend_, sizeof(funid_t) + sz_buf + sizeof(size_t));
+//    apr_atomic_inc32(&n_data_sent_);
     
     // realloc the write buf if not enough.
     if (sz_buf + sizeof(size_t) + sizeof(funid_t)
@@ -246,7 +253,7 @@ void reply_to(read_state_t *state) {
 void stat_on_write(size_t sz) {
     LOG_TRACE("sent data size: %d", sz);
     sz_data_sent_ += sz;
-    apr_atomic_sub32(&sz_data_tosend_, sz);
+//    apr_atomic_sub32(&sz_data_tosend_, sz);
 }
 
 void poll_on_write(context_t *ctx, const apr_pollfd_t *pfd) {
@@ -256,13 +263,30 @@ void poll_on_write(context_t *ctx, const apr_pollfd_t *pfd) {
     uint8_t *buf = ctx->buf_send.buf + ctx->buf_send.offset_begin;
     size_t n = ctx->buf_send.offset_end - ctx->buf_send.offset_begin;
     if (n > 0) {
+        int tmp = n;
         status = apr_socket_send(pfd->desc.s, (char *)buf, &n);
-        if (status != APR_SUCCESS) {
-            LOG_ERROR("write error: %s", apr_strerror(status, malloc(100), 100));
-            SAFE_ASSERT(status == APR_SUCCESS);
-        }
         stat_on_write(n);
         ctx->buf_send.offset_begin += n;
+        ctx->sz_send += n; 
+        if (status == APR_SUCCESS || status == APR_EAGAIN) {
+        
+        } else if (status == APR_ECONNRESET) {
+            LOG_ERROR("connection reset on write, is this a mac os?");
+            apr_pollset_remove(ctx->ps, &ctx->pfd);
+            return;
+        } else if (status == APR_EAGAIN) {
+            LOG_ERROR("on write, socket busy, resource temporarily unavailable.");
+            // do nothing.
+        } else if (status == APR_EPIPE) {
+            LOG_ERROR("on write, broken pipe, epipe error, is this a mac os?");
+            LOG_ERROR("rpc called %"PRIu64", data received: %"PRIu64" bytes, sent: %"PRIu64" bytes", ctx->n_rpc, ctx->sz_recv, ctx->sz_send);
+            apr_pollset_remove(ctx->ps, &ctx->pfd);
+            return;
+        } else {
+            LOG_ERROR("error code: %d, error message: %s",(int)status, apr_strerror(status, malloc(100), 100));
+            LOG_ERROR("try to write %d bytes in write buffer.", tmp);
+            SAFE_ASSERT(status == APR_SUCCESS);
+        }
     } else if (n == 0){
         LOG_WARN("nothing to write? how so?");
     } else {
@@ -275,8 +299,11 @@ void poll_on_write(context_t *ctx, const apr_pollfd_t *pfd) {
         apr_pollset_remove(ctx->ps, &ctx->pfd);
         ctx->pfd.reqevents = APR_POLLIN;
         apr_pollset_add(ctx->ps, &ctx->pfd);
+    } else {
+        apr_pollset_remove(ctx->ps, &ctx->pfd);
+        ctx->pfd.reqevents = APR_POLLIN | APR_POLLOUT;
+        apr_pollset_add(ctx->ps, &ctx->pfd);
     }
-    
     apr_thread_mutex_unlock(ctx->mx);
 }
 
@@ -344,13 +371,14 @@ void poll_on_read(context_t * ctx, const apr_pollfd_t *pfd) {
                     rpc_state *state = malloc(sizeof(rpc_state));
                     state->sz = sz_msg - sizeof(funid_t);
                     state->buf = malloc(sz_msg);
+                    state->ctx = ctx;
                     memcpy(state->buf, buf + sizeof(funid_t), state->sz);
 //                    state->ctx = ctx;
 /*
                     apr_thread_pool_push(tp_on_read_, (*(ctx->on_recv)), (void*)state, 0, NULL);
 //                    mpr_thread_pool_push(tp_read_, (void*)state);
 */
-                    apr_atomic_inc32(&n_data_recv_);
+//                    apr_atomic_inc32(&n_data_recv_);
                     //(*(ctx->on_recv))(NULL, state);
                     // FIXME call
                     rpc_state* (**fun)(void*) = NULL;
@@ -358,6 +386,8 @@ void poll_on_read(context_t * ctx, const apr_pollfd_t *pfd) {
                     mpr_hash_get(ctx->com->ht, &fid, sizeof(funid_t), (void**)&fun, &sz);
                     SAFE_ASSERT(fun != NULL);
                     LOG_TRACE("going to call function %x", *fun);
+                    ctx->n_rpc++;
+                    ctx->sz_recv += n;
                     rpc_state *ret_s = (**fun)(state);
                     free(state->buf);
                     free(state);
@@ -387,18 +417,18 @@ void poll_on_read(context_t * ctx, const apr_pollfd_t *pfd) {
             }
         }
     } else if (status == APR_EOF) {
-        LOG_WARN("received apr eof, what to do?");
+        LOG_INFO("on read, received eof, close socket");
         apr_pollset_remove(ctx->ps, &ctx->pfd);
-        context_destroy(ctx);
+        // context_destroy(ctx);
     } else if (status == APR_ECONNRESET) {
-        LOG_WARN("oops, seems that i just lost a buddy");
+        LOG_ERROR("on read. connection reset.");
         // TODO [improve] you may retry connect
         apr_pollset_remove(ctx->ps, &ctx->pfd);
     } else if (status == APR_EAGAIN) {
         LOG_ERROR("socket busy, resource temporarily unavailable.");
         // do nothing.
     } else {
-        printf("%s\n", apr_strerror(status, malloc(100), 100));
+        LOG_ERROR("unkown error on poll reading. %s\n", apr_strerror(status, malloc(100), 100));
         SAFE_ASSERT(0);
     }
 }
@@ -406,8 +436,8 @@ void poll_on_read(context_t * ctx, const apr_pollfd_t *pfd) {
 void poll_on_accept(server_t *r) {
     apr_status_t status = APR_SUCCESS;
     apr_socket_t *ns = NULL;
-//    apr_socket_t *sock_listen = r->com.s;
     status = apr_socket_accept(&ns, r->com.s, r->com.mp);
+//    apr_socket_t *sock_listen = r->com.s;
 //    LOG_INFO("accept on fd %x", sock_listen->socketdes);
     if (status != APR_SUCCESS) {
         LOG_ERROR("recvr accept error.");
@@ -416,6 +446,7 @@ void poll_on_accept(server_t *r) {
     }
     apr_socket_opt_set(ns, APR_SO_NONBLOCK, 1);
     apr_socket_opt_set(ns, APR_TCP_NODELAY, 1);
+//    apr_socket_opt_set(ns, APR_SO_REUSEADDR, 1);
     context_t *ctx = context_gen(&r->com);
     ctx->s = ns;
     apr_pollfd_t pfd = {ctx->mp, APR_POLL_SOCKET, APR_POLLIN, 0, {NULL}, NULL};
@@ -426,6 +457,8 @@ void poll_on_accept(server_t *r) {
     // FIXME can context be managed by itself?
     //r->ctxs[r->sz_ctxs++] = ctx;
     apr_pollset_add(ctx->ps, &ctx->pfd);
+    static int j = 0;
+    LOG_TRACE("accepted %d connection.", ++j);
 }
 
 void* APR_THREAD_FUNC start_poll(apr_thread_t *t, void *arg) {
@@ -442,7 +475,7 @@ void* APR_THREAD_FUNC start_poll(apr_thread_t *t, void *arg) {
             }
             for(int i = 0; i < num; i++) {
                 if (ret_pfd[i].rtnevents & APR_POLLIN) {
-                    if( server_ != NULL && ret_pfd[i].desc.s == server_->com.s) {
+                    if (server_ != NULL && ret_pfd[i].desc.s == server_->com.s) {
                         // new connection arrives.
                         poll_on_accept(server_);
                     } else {
@@ -452,7 +485,7 @@ void* APR_THREAD_FUNC start_poll(apr_thread_t *t, void *arg) {
                 if (ret_pfd[i].rtnevents & APR_POLLOUT) {
                     poll_on_write(ret_pfd[i].client_data, &ret_pfd[i]);
                 }
-                if (!(ret_pfd[i].rtnevents | APR_POLLOUT | APR_POLLIN)) {
+                if (!(ret_pfd[i].rtnevents & (APR_POLLOUT | APR_POLLIN))) {
                     // have no idea.
                     LOG_ERROR("see some poll event neither in or out. event:%d",
                         ret_pfd[i].rtnevents);
@@ -461,7 +494,7 @@ void* APR_THREAD_FUNC start_poll(apr_thread_t *t, void *arg) {
             }
         } else if (status == APR_EINTR) {
             // the signal we get when process exit, wakeup, or add in and write.
-            LOG_DEBUG("the receiver epoll exits?");
+            LOG_WARN("the receiver epoll exits?");
             continue;
         } else if (status == APR_TIMEUP) {
             // debug.
@@ -491,22 +524,29 @@ void server_start(server_t* s) {
 void client_connect(client_t *c) {
     LOG_DEBUG("connecting to server %s %d", c->com.ip, c->com.port);
     
-    apr_sockaddr_info_get(&c->com.sa, c->com.ip, APR_INET, c->com.port, 0, c->com.mp);
-    // apr_socket_create(&s->s, s->sa->family, SOCK_DGRAM, APR_PROTO_UDP, ctx->mp);
-    apr_socket_create(&c->com.s, c->com.sa->family, SOCK_STREAM, APR_PROTO_TCP, c->com.mp);
-    apr_socket_opt_set(c->com.s, APR_SO_NONBLOCK, 1);
-    // apr_socket_opt_set(s->s, APR_SO_REUSEADDR, 1);/* this is useful for a server(socket listening) process */
-    apr_socket_opt_set(c->com.s, APR_TCP_NODELAY, 1);
-
-    //printf("Default sending buffer size %d.\n", send_buf_size);
     apr_status_t status = APR_SUCCESS;
-    do {
-/*
-        printf("TCP CLIENT TRYING TO CONNECT.");
-*/
+    status = apr_sockaddr_info_get(&c->com.sa, c->com.ip, APR_INET, c->com.port, 0, c->com.mp);
+//    status = apr_sockaddr_info_get(&c->com.sa, c->com.ip, APR_UNSPEC, c->com.port, APR_IPV4_ADDR_OK, c->com.mp);
+    SAFE_ASSERT(status == APR_SUCCESS);
+    status = apr_socket_create(&c->com.s, c->com.sa->family, SOCK_STREAM, APR_PROTO_TCP, c->com.mp);
+    SAFE_ASSERT(status == APR_SUCCESS);
+    status = apr_socket_opt_set(c->com.s, APR_TCP_NODELAY, 1);
+    SAFE_ASSERT(status == APR_SUCCESS);
+
+    while (1) {
+        LOG_TRACE("TCP CLIENT TRYING TO CONNECT.");
         status = apr_socket_connect(c->com.s, c->com.sa);
-    } while (status != APR_SUCCESS);
-    LOG_DEBUG("connected socket on remote addr %s, port %d", c->com.ip, c->com.port);
+        if (status == APR_SUCCESS /*|| status == APR_EINPROGRESS */) {
+            break;
+        } else {
+            LOG_ERROR("client connect error:%s", apr_strerror(status, malloc(100), 100));
+//            LOG_ERROR("client addr: %s:%d", c->com.ip, c->com.port);
+            continue;
+        }
+    }
+    LOG_TRACE("connected socket on remote addr %s, port %d", c->com.ip, c->com.port);
+    status = apr_socket_opt_set(c->com.s, APR_SO_NONBLOCK, 1);
+    SAFE_ASSERT(status == APR_SUCCESS);
     
     // add to epoll
     context_t *ctx = c->ctx;

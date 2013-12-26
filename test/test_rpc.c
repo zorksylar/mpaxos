@@ -21,7 +21,18 @@ void add_cb(rpc_state *in) {
     // Do nothing
 }
 
+void sig_handler(int signo) {
+    char *s = strsignal(signo);
+    printf("received signal. type: %s\n", s);
+    if (signo == SIGINT) {
+        printf("received SIGINT\n");
+        exit(0);
+    }
+}
+
 START_TEST (rpc) {
+    if (signal(SIGINT, sig_handler) == SIG_ERR) printf("\ncan't catch SIGINT\n");
+
     server_t *server = NULL;
     client_t *client = NULL;
 

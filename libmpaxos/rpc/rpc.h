@@ -31,6 +31,9 @@ typedef struct {
     apr_thread_mutex_t *mx;
     apr_pollset_t *ps;  
     rpc_common_t *com;
+    uint64_t n_rpc;
+    uint64_t sz_recv;
+    uint64_t sz_send;
     
     struct  {
         uint8_t *buf;
@@ -64,6 +67,7 @@ typedef struct {
 typedef struct {
     uint8_t *buf;
     size_t sz;
+    context_t *ctx;
 } rpc_state;
 
 void rpc_init();
