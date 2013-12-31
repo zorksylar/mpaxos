@@ -10,6 +10,7 @@ all: $(LIB_MPAXOS_OBJ)
 
 $(DIR_OBJ)/%.o: %.c
 	$(V)echo "[ CC ] $<"
+	$(V)if [[ ! -d `dirname $@` ]]; then mkdir -p `dirname $@`; fi
 	$(V)$(CC) -I. -I$(DIR_INC) $(CCFLAGS) $(LIB_MPAXOS_CC_FLAGS) $< -o $@
 
 clean:

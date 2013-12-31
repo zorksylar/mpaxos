@@ -16,3 +16,4 @@ result*
 *.swp
 bin
 cscope.out
+.gdb_history

@@ -31,6 +31,7 @@ int main(int argc, char **argv) {
         kvdb_destroy();
         return 0;
     }
+    return 0;
 
     rs = kvdb_put(2, key, klen-1, val, vlen);
     LOG("put to table 2 result = %d", rs);

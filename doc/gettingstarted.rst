@@ -111,5 +111,6 @@ You should get:
    
    Hello MPaxos!
 
-Wow!
+Such good!
 
+Wow!
