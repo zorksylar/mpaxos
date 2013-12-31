@@ -124,17 +124,20 @@ void mpaxos_set_cb_god(mpaxos_cb_t cb) {
 }
 
 void mpaxos_async_destroy() {
-    LOG_DEBUG("async module to be destroied.");
-    // TODO [improve] recycle everything.
+    LOG_DEBUG("async module to be destroyed.");
+    // recycle everything.
     apr_atomic_set32(&is_exit_, 1);
     apr_status_t s = APR_SUCCESS;
-    mpr_dag_destroy(dag_);
+    
+    mpr_dag_interrupt(dag_);
+
+    // wait here
     apr_thread_join(&s, th_daemon_);
     //pthread_join(th_daemon_, NULL);
     apr_thread_mutex_destroy(mx_gids_);
     apr_thread_pool_destroy(tp_async_);
     apr_pool_destroy(mp_async_);
-    LOG_DEBUG("async module destroied.");
+    LOG_INFO("async module destroyed.");
 }
 
 /**
@@ -194,19 +197,24 @@ void* APR_THREAD_FUNC mpaxos_async_daemon(apr_thread_t *th, void* data) {
         LOG_TRACE("getting white node from dag");
         apr_status_t status = mpr_dag_getwhite(dag_, &gids, &sz_gids, (void **)&req);
         
-        if (status == APR_EOF) {
+        if (status == APR_SUCCESS) {
+            SAFE_ASSERT(status == APR_SUCCESS);
+            LOG_TRACE("white node got from dag");
+            req->tm_start = apr_time_now();
+            //status = apr_thread_pool_push(tp_async_, async_commit_job, 
+            //    (void*)req, 0, NULL);
+            async_commit_job(NULL, req);
+            SAFE_ASSERT(status == APR_SUCCESS);
+            //mpaxos_start_request(req);
+        } else if (status == APR_EOF) {
             LOG_DEBUG("daemon exiting.");
             break;
+        } else {
+            continue;
         }
-        SAFE_ASSERT(status == APR_SUCCESS);
-        LOG_TRACE("white node got from dag");
-        req->tm_start = apr_time_now();
-        //status = apr_thread_pool_push(tp_async_, async_commit_job, 
-        //    (void*)req, 0, NULL);
-        async_commit_job(NULL, req);
-        SAFE_ASSERT(status == APR_SUCCESS);
-        //mpaxos_start_request(req);
     }
+    // recycle the queue.
+    mpr_dag_destroy(dag_);
     LOG_DEBUG("async daemon thread exit");
     //apr_thread_exit(th, APR_SUCCESS);
     return NULL;

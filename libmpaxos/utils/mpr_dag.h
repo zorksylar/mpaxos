@@ -52,11 +52,15 @@ static void mpr_dag_create(mpr_dag_t **pp_dag) {
 
 static void mpr_dag_destroy(mpr_dag_t *dag) {
     LOG_TRACE("dag to be destroied.");
-    apr_thread_mutex_destroy(dag->mx);
     apr_queue_term(dag->qu);
+    apr_thread_mutex_destroy(dag->mx);
     apr_pool_destroy(dag->mp);
     free(dag);
     LOG_DEBUG("dag destroied.");
+}
+
+static void mpr_dag_interrupt(mpr_dag_t *dag) {
+    apr_queue_interrupt_all(dag->qu);
 }
 
 static void mpr_dag_push(mpr_dag_t *dag, queueid_t *qids, 
@@ -161,7 +165,9 @@ static apr_status_t mpr_dag_getwhite(mpr_dag_t *dag, queueid_t **qids,
     status = apr_queue_pop(dag->qu, (void **)&node);
     switch (status) {
     case APR_SUCCESS:
+    case APR_EAGAIN:
     case APR_EOF:
+    case APR_EINTR:
         break;
     default:
         LOG_ERROR("dag get error: %s", apr_strerror(status, calloc(100, 1), 100));
