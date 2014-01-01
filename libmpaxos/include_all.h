@@ -36,6 +36,7 @@ extern "C" {
 #include "slot_mgr.h"
 #include "recorder.h"
 #include "controller.h"
+#include "db_helper.h"
 
 
 #ifdef	__cplusplus

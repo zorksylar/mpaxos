@@ -16,6 +16,8 @@
 #include "utils/mlock.h"
 #include "comm.h"
 #include "async.h"
+#include "internal_types.h"
+#include "include_all.h"
 
 
 apr_pool_t *mp_recorder_;
@@ -67,6 +69,12 @@ void record_proposal(proposal_t *prop) {
         apr_thread_mutex_lock(mx_value_);
         apr_hash_set(ht_value_, iid, sizeof(instid_t), prop);
         apr_thread_mutex_unlock(mx_value_);
+
+        uint8_t *value = NULL;
+        size_t sz_value = 0;
+        prop_pack(prop, &value, &sz_value);
+        db_put_raw((uint8_t*)iid, sizeof(instid_t), value, sz_value, 1);
+        prop_buf_free(value);
         
         // renew the newest value number
         apr_thread_mutex_lock(mx_newest_);

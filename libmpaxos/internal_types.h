@@ -125,4 +125,26 @@ static void prop_cpy(proposal_t *dest, const proposal_t *src, apr_pool_t *mp) {
     memcpy(dest->value.data, src->value.data, src->value.len);
 }
 
+static void prop_pack(proposal_t *prop, uint8_t **buf, size_t *sz_buf) {
+    size_t sz = mpaxos__proposal__get_packed_size(prop);
+    *sz_buf = sz;
+    *buf =  malloc(sz);
+    mpaxos__proposal__pack(prop, *buf);
+}
+
+static void prop_buf_free(uint8_t *buf) {
+    free(buf);
+}
+
+
+// TODO
+static void prop_unpack(uint8_t *buf, size_t sz_buf, proposal_t **prop) {
+
+}
+
+// TODO
+static void prop_free(proposal_t *prop) {
+
+}
+
 #endif

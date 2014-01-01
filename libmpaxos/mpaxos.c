@@ -28,6 +28,9 @@ void mpaxos_init() {
     apr_pool_create(&mp_global_, NULL);
     lastslot_ht_ = apr_hash_make(mp_global_);
 
+    // initialize db
+    db_init();
+
     // initialize view
     view_init();
 
@@ -75,6 +78,9 @@ void mpaxos_destroy() {
 
     // stop asynchrouns callback.
     mpaxos_async_destroy();
+
+    db_destroy();
+
     apr_pool_destroy(mp_global_);
     apr_terminate();
 
