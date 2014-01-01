@@ -97,12 +97,12 @@ void stat_result() {
 }
 
 void cb(groupid_t* gids, size_t sz_gids, slotid_t* sids, 
-        uint8_t *data, size_t sz_data, void* para) {
+        uint8_t *data, size_t sz_data, uint8_t *data_c, size_t sz_data_c, void* para) {
     apr_atomic_inc32(&n_cb_);
     uint32_t n_left = (uint32_t)(uintptr_t)para;
     if (n_left-- > 0) {
         apr_atomic_inc32(&n_req_);
-        commit_async(gids, sz_gids, TEST_DATA, SZ_DATA, (void*)(uintptr_t)n_left);
+        mpaxos_commit_raw(gids, sz_gids, TEST_DATA, SZ_DATA, NULL, 0, (void*)(uintptr_t)n_left);
     } else {
         apr_atomic_dec32(&n_group_running);
         if (apr_atomic_read32(&n_group_running) == 0) {
@@ -128,7 +128,8 @@ void test_async_start() {
             gids[j] = gid_start + j;
         }
         apr_atomic_inc32(&n_req_);
-        commit_async(gids, n_batch_, TEST_DATA, SZ_DATA, (void*)(uintptr_t)(n_tosend-1));
+        mpaxos_commit_raw(gids, n_batch_, TEST_DATA, SZ_DATA, NULL, 0, (void*)(uintptr_t)(n_tosend-1));
+   //     printf("n_tosend: %d\n", n_tosend);
     }
     
     apr_thread_cond_wait(cd_exit_, mx_exit_);

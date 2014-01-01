@@ -42,6 +42,7 @@ void db_put_raw(uint8_t* key, size_t sz_key, uint8_t *value, size_t sz_value, in
     char *err = NULL;
     leveldb_writeoptions_t *woptions;
     woptions = leveldb_writeoptions_create();
+    leveldb_writeoptions_set_sync(woptions, sync);
     leveldb_put(db_, woptions, (char*)key, sz_key, (char*)value, sz_value, &err);
     SAFE_ASSERT(err == NULL);
 }
