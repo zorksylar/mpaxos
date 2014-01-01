@@ -53,6 +53,7 @@ void mpaxos_callback(groupid_t* ids, size_t sz_ids, slotid_t* slots, uint8_t *ms
 
     std::string idstr = "";
     std::string slotstr = "";
+
     for (int i = 0; i < sz_ids; i++) {
         idstr += std::to_string(ids[i]);
         slotstr += std::to_string(slots[i]);
@@ -60,14 +61,15 @@ void mpaxos_callback(groupid_t* ids, size_t sz_ids, slotid_t* slots, uint8_t *ms
     
     DD("mpaxos callback table.count = %zu, ids = [%s], slots = [%s], msg len = %zu, op_id = %lu", sz_ids, idstr.c_str(), slotstr.c_str(), mlen, (unsigned long)commit_param->id);
 
-    return;
+    assert(sz_ids > 0);
 
-/*
+    groupid_t id = ids[0];                  // for single table operation, id is enough
+
     std::map<uint64_t, Operation>::iterator it;
     it = operations.find(commit_param->id);
 
     Buf buf(msg, mlen);
-    Operation op = unwrap(buf);
+    Operation op = unwrap(buf);             // get our operation from the msg
 
     assert(op.code < OPERATION_TYPE_COUNT && op.code >= OP_NOP);
 
@@ -168,12 +170,8 @@ void mpaxos_callback(groupid_t* ids, size_t sz_ids, slotid_t* slots, uint8_t *ms
 
     if (it != operations.end()) {
         it->second.lock.signal();
-    }
-    
-    if (it != operations.end()) {
         it->second.lock.unlock();
     }
-*/
 }
 
 int kvdb_init(char * dbhome, char * mpaxos_config_path) {

@@ -31,7 +31,6 @@ int main(int argc, char **argv) {
         kvdb_destroy();
         return 0;
     }
-    return 0;
 
     rs = kvdb_put(2, key, klen-1, val, vlen);
     LOG("put to table 2 result = %d", rs);
@@ -83,6 +82,7 @@ int main(int argc, char **argv) {
         printf("test del non-existing key  ... [ FAIL ]\n");
     }
 
+    return 0;
     int pairs = 4, p = 0;
     uint8_t ** keys = (uint8_t **)malloc(sizeof(uint8_t *) * pairs);
     uint8_t ** vals = (uint8_t **)malloc(sizeof(uint8_t *) * pairs);
