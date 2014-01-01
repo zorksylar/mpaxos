@@ -56,7 +56,7 @@ void mpaxos_callback(groupid_t* ids, size_t sz_ids, slotid_t* slots, uint8_t *ms
 
     for (int i = 0; i < sz_ids; i++) {
         idstr += std::to_string(ids[i]);
-        slotstr += std::to_string(slots[i]);
+        slotstr += " " + std::to_string(slots[i]);
     }
     
     DD("mpaxos callback table.count = %zu, ids = [%s], slots = [%s], msg len = %zu, op_id = %lu", sz_ids, idstr.c_str(), slotstr.c_str(), mlen, (unsigned long)commit_param->id);
@@ -67,6 +67,7 @@ void mpaxos_callback(groupid_t* ids, size_t sz_ids, slotid_t* slots, uint8_t *ms
 
     std::map<uint64_t, Operation>::iterator it;
     it = operations.find(commit_param->id);
+    assert (it != operations.end());
 
     Buf buf(msg, mlen);
     Operation op = unwrap(buf);             // get our operation from the msg
@@ -81,15 +82,26 @@ void mpaxos_callback(groupid_t* ids, size_t sz_ids, slotid_t* slots, uint8_t *ms
 
     if (op.pairs == 1) {
         assert((uintptr_t)op.tables == id);
+    } else {
+        // tables should be equal to ids
+        assert(op.pairs == sz_ids);
+        for (int i = 0; i < sz_ids; i++) {
+            assert(op.tables[i] == ids[i]);
+        }
     }
 
-    int rs = open_db(id);
-    if (rs) {
-        if (it != operations.end()) {
-            it->second.result.errcode = rs;
+    int rs;
+    for (int i = 0; i < sz_ids; i++) {
+        rs = open_db(ids[i]);
+        if (rs) {
+            if (it != operations.end()) {
+                it->second.result.errcode = rs;
+            }
+            EE("error open db for %d, op = %d", id, op.code);
+            break;
         }
-        EE("error open db for %d, op = %d", id, op.code);
-    } else {
+    }
+    if (!rs) {
         if (op.code == OP_PUT || (op.code == OP_BATCH_PUT && op.pairs == 1)) {
             DBT dbkey;
             DBT dbval;
@@ -146,21 +158,18 @@ void mpaxos_callback(groupid_t* ids, size_t sz_ids, slotid_t* slots, uint8_t *ms
         } else if (op.code == OP_BATCH_PUT) {
             assert(op.pairs > 1);
             for (int p = 0; p < op.pairs; p++) {
-                if (op.tables[p] != id) {
-                    continue;
-                }
                 DBT dbkey;
                 DBT dbval;
                 DBT_WRAP(dbkey, op.args[2 * p].buf, op.args[2 * p].len);
                 DBT_WRAP(dbval, op.args[2 * p + 1].buf, op.args[2 * p + 1].len);
                 
-                rs = dbs[id]->put(dbs[id], NULL, &dbkey, &dbval, 0);
+                rs = dbs[ids[p]]->put(dbs[ids[p]], NULL, &dbkey, &dbval, 0);
                 if (it != operations.end()) {
                     it->second.result.progress++;
                     it->second.result.errcode = rs;
                 }
                 if (rs) {
-                    EE("error put value for %d in batch put", id);
+                    EE("error put value for %d in batch put", ids[p]);
                     it->second.result.progress = -1;
                     break;
                 }
@@ -328,7 +337,8 @@ int kvdb_batch_put(groupid_t * tables, uint8_t ** keys, size_t * klens, uint8_t 
     // commit all the tables
     commit_async(tables, pairs, commit.buf, commit.len, (void *)param);
 
-    while (operations[op_id].result.progress >= 0 && operations[op_id].result.progress < pairs) {
+    // there is only one callback according to the latest mpaxos api, so just wait for progress to 1
+    while (operations[op_id].result.progress >= 0 && operations[op_id].result.progress < 1) {           // if there will be be pairs callback in total, then use `progress < pairs`
         DD("progress = %d", operations[op_id].result.progress);
         operations[op_id].lock.wait();
     }

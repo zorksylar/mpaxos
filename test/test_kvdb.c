@@ -4,6 +4,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <apr_time.h>
+#include <sys/stat.h>
 
 #include "kvdb/kvdb.h"
 
@@ -16,6 +17,7 @@ int main(int argc, char **argv) {
         fprintf(stderr, "usage: %s <mpaxos config file>\n", argv[0]);
         return 0;
     }
+    mkdir(DB_HOME, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
     int id = 0;
     int rs = kvdb_init(DB_HOME, argv[1]);
     if (rs != KVDB_RET_OK) {
@@ -82,15 +84,14 @@ int main(int argc, char **argv) {
         printf("test del non-existing key  ... [ FAIL ]\n");
     }
 
-    return 0;
-    int pairs = 4, p = 0;
+    int pairs = 8, p = 0;
     uint8_t ** keys = (uint8_t **)malloc(sizeof(uint8_t *) * pairs);
     uint8_t ** vals = (uint8_t **)malloc(sizeof(uint8_t *) * pairs);
     size_t * klens = (size_t *)malloc(sizeof(size_t) * pairs);
     size_t * vlens = (size_t *)malloc(sizeof(size_t) * pairs);
     groupid_t * tables = (groupid_t *)malloc(sizeof(groupid_t) * pairs);
-#define KEYS " batch key"
-#define VALS " batch val"
+#define KEYS "  batch key"
+#define VALS "  batch val"
     for (p = 0; p < pairs; p++) {
         klens[p] = strlen(KEYS);
         vlens[p] = strlen(VALS);
@@ -104,7 +105,29 @@ int main(int argc, char **argv) {
         tables[p] = p + 1;
     }
 
-    rs = kvdb_batch_put(tables, keys, klens, vals, vlens, 4);
+    rs = kvdb_batch_put(tables, keys, klens, vals, vlens, pairs);
+
+    if (rs) {
+        printf("failed to do batch put  ... [ FAIL ]\n");
+    }
+    uint8_t batch_key[100];
+    int kl = strlen(KEYS);
+    int vl = strlen(VALS);
+    uint8_t * batch_val;
+    size_t batch_val_len;
+    uint8_t batch_ans[100];
+    for (p = 0; p < pairs; p++) {
+        memcpy(batch_key, KEYS, kl);
+        memcpy(batch_ans, VALS, vl);
+        batch_key[0] = '0' + p;
+        batch_ans[0] = '0' + p;
+        kvdb_get(p+1, batch_key, kl, &batch_val, &batch_val_len);
+        if (batch_val_len != vl || memcmp(batch_ans, batch_val, vl)) {
+            printf("test value by batch_put: %s, expected = %s, got = %s .... [ FAIL ]\n", batch_key, batch_ans, batch_val);
+        } else {
+            printf("test value by batch_put: %s .... [ PASS ]\n", batch_key);
+        }
+    }
 
     kvdb_destroy();
     return 0;
