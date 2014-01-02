@@ -128,7 +128,7 @@ int mpaxos_commit_raw(groupid_t* gids, size_t sz_gids, uint8_t *data,
  * commit a request that is to be processed asynchronously. add the request to the aync job queue. 
  */
 int commit_async(groupid_t* gids, size_t sz_gids, uint8_t *data,
-        size_t sz_data, uint8_t data_c, size_t sz_data_c, void* cb_para) {
+        size_t sz_data, uint8_t *data_c, size_t sz_data_c, void* cb_para) {
     // call the asynchrounous module.
     mpaxos_async_enlist(gids, sz_gids, data, sz_data, data_c, sz_data_c, cb_para);
     return 0;
