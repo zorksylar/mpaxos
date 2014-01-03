@@ -67,35 +67,11 @@ txnid_t gen_txn_id() {
     return tid;
 }
 
-void mpaxos_async_enlist(groupid_t *gids, size_t sz_gids, uint8_t *data, 
-    size_t sz_data, uint8_t *data_c, size_t sz_data_c, void* cb_para) {
-    mpaxos_req_t *r = (mpaxos_req_t *)malloc(sizeof(mpaxos_req_t));
-    r->gids = malloc(sz_gids * sizeof(groupid_t));
-    r->sz_gids = sz_gids;
-    r->sz_data = sz_data;
-    r->sz_data_c = sz_data_c;
-    r->cb_para = cb_para;
-    r->n_retry = 0;
-    r->id = gen_txn_id();
-    if (sz_data > 0) {
-        r->data = malloc(sz_data);
-        memcpy(r->data, data, sz_data);
-    } else {
-        r->data = NULL;
-    }
-    
-    if (sz_data_c > 0) {
-        r->data_c = malloc(sz_data_c);
-        memcpy(r->data_c, data_c, sz_data_c);
-    } else {
-        r->data_c = NULL;
-    }
-
-    memcpy(r->gids, gids, sz_gids * sizeof(groupid_t));
-    mpr_dag_push(dag_, gids, sz_gids, r);
-    
+void mpaxos_async_enlist(mpaxos_req_t *req) {
+    mpr_dag_push(dag_, req->gids, req->sz_gids, req);
     LOG_DEBUG("request %d enlisted.", apr_atomic_read32(&n_req_));
 }
+
 
 /**
  * !!!IMPORTANT!!!
