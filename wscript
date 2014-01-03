@@ -39,8 +39,8 @@ def configure(conf):
     #conf.env.append_value("LINKFLAGS", "-lleveldb")
 
 def build(bld):
-    bld.stlib(source=bld.path.ant_glob("libmpaxos/rpc/*.c libmpaxos/*.c"), target="mpaxos", includes="libmpaxos include", use="APR APR-UTIL JSON PROTOBUF PTHREAD LEVELDB")
     bld.stlib(source=bld.path.ant_glob("libzfec/*.c"), target="zfec", includes="libzfec")
+    bld.stlib(source=bld.path.ant_glob("libmpaxos/rpc/*.c libmpaxos/*.c"), target="mpaxos", includes="libmpaxos include libzfec", use="APR APR-UTIL JSON PROTOBUF PTHREAD LEVELDB zfec")
     bld.program(source="test/test_mpaxos.c", target="test_mpaxos.out", includes="include", use="mpaxos APR APR-UTIL")
     bld.program(source="test/test_check.c", target="test_check.out", includes="include libmpaxos libzfec", use="mpaxos APR APR-UTIL CHECK zfec")
     bld.program(source="test/bench_rpc.c", target="bench_rpc.out", includes="include libmpaxos", use="mpaxos APR APR-UTIL CHECK")

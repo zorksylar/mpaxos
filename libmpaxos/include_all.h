@@ -37,6 +37,7 @@ extern "C" {
 #include "recorder.h"
 #include "controller.h"
 #include "db_helper.h"
+#include "rs_helper.h"
 
 
 #ifdef	__cplusplus

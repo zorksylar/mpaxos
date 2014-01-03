@@ -46,8 +46,11 @@ static apr_thread_cond_t *cd_exit_;
 static apr_thread_mutex_t *mx_exit_;
 
 
-static uint8_t* TEST_DATA;
+static uint8_t* TEST_DATA = NULL;
 static size_t SZ_DATA = 100;
+static uint8_t* TEST_DATA_C = NULL;
+static size_t SZ_DATA_C = 1024 * 1024;
+
 static apr_uint32_t ready_to_exit = 0;
 
 static apr_time_t time_begin_;
@@ -102,7 +105,7 @@ void cb(groupid_t* gids, size_t sz_gids, slotid_t* sids,
     uint32_t n_left = (uint32_t)(uintptr_t)para;
     if (n_left-- > 0) {
         apr_atomic_inc32(&n_req_);
-        mpaxos_commit_raw(gids, sz_gids, TEST_DATA, SZ_DATA, NULL, 0, (void*)(uintptr_t)n_left);
+        mpaxos_commit_raw(gids, sz_gids, TEST_DATA, SZ_DATA, TEST_DATA_C, SZ_DATA_C, (void*)(uintptr_t)n_left);
     } else {
         apr_atomic_dec32(&n_group_running);
         if (apr_atomic_read32(&n_group_running) == 0) {
@@ -128,7 +131,7 @@ void test_async_start() {
             gids[j] = gid_start + j;
         }
         apr_atomic_inc32(&n_req_);
-        mpaxos_commit_raw(gids, n_batch_, TEST_DATA, SZ_DATA, NULL, 0, (void*)(uintptr_t)(n_tosend-1));
+        mpaxos_commit_raw(gids, n_batch_, TEST_DATA, SZ_DATA, TEST_DATA_C, SZ_DATA_C, (void*)(uintptr_t)(n_tosend-1));
    //     printf("n_tosend: %d\n", n_tosend);
     }
     
@@ -146,6 +149,7 @@ void test_async_start() {
     //}
 }
 
+// Do not use this
 void* APR_THREAD_FUNC test_group(apr_thread_t *p_t, void *v) {
     groupid_t gid = (groupid_t)(uintptr_t)v;
     apr_time_t start_time;
@@ -163,9 +167,9 @@ void* APR_THREAD_FUNC test_group(apr_thread_t *p_t, void *v) {
     int n = n_tosend;
     do {
         if (async) {
-            commit_async(&gid, 1, val, val_size, NULL);
+//            commit_async(&gid, 1, val, val_size, NULL);
         } else {
-            commit_sync(&gid, 1, val, val_size);
+//            commit_sync(&gid, 1, val, val_size);
         }
         msg_count++;
         data_count += val_size;
@@ -236,7 +240,7 @@ int main(int argc, char **argv) {
     n_batch_ = (argc > ++c) ? atoi(argv[c]) : n_batch_;
     SZ_DATA = (argc > ++c) ? atoi(argv[c]) : SZ_DATA;
     TEST_DATA = calloc(SZ_DATA, 1);
-    
+    TEST_DATA_C = (SZ_DATA_C > 0) ? malloc(SZ_DATA_C) : NULL;
     
     LOG_INFO("test for %d messages.", n_tosend);
     LOG_INFO("test for %d threads.", n_group);
