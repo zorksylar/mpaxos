@@ -28,6 +28,7 @@ typedef Mpaxos__MsgDecide msg_decide_t;
 typedef Mpaxos__MsgSlot msg_slot_t;
 typedef Mpaxos__MsgHeader msg_header_t;
 typedef Mpaxos__ProcessidT processid_t;
+typedef Mpaxos__CodedValueT coded_value_t;
 
 typedef uint8_t msg_type_t;
 

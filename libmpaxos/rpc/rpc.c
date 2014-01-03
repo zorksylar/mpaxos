@@ -17,7 +17,7 @@
 
 #define MAX_ON_READ_THREADS 1
 #define POLLSET_NUM 100
-#define SZ_POLLSETS 64
+#define SZ_POLLSETS 4
 
 static apr_pool_t *mp_rpc_ = NULL; 
 static server_t *server_ = NULL;

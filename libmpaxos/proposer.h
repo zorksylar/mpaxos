@@ -30,6 +30,9 @@ void broadcast_msg_prepare(txn_info_t *tinfo);
 void broadcast_msg_accept(txn_info_t* tinfo,
 		Mpaxos__Proposal *prop_p);
 
+void broadcast_msg_accept_c(txn_info_t *tinfo,
+        proposal_t *prop_p, coded_value_t **cv);
+
 int mpaxos_prepare(txn_info_t *tinfo);
 
 int mpaxos_accept(txn_info_t *tinfo);
