@@ -49,7 +49,8 @@ static apr_thread_mutex_t *mx_exit_;
 static uint8_t* TEST_DATA = NULL;
 static size_t SZ_DATA = 100;
 static uint8_t* TEST_DATA_C = NULL;
-static size_t SZ_DATA_C = 1024 * 1024;
+//static size_t SZ_DATA_C = 1024 * 1024;
+static size_t SZ_DATA_C = 0;
 
 static apr_uint32_t ready_to_exit = 0;
 

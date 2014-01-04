@@ -3,8 +3,10 @@
 
 #include "fec.h"
 #include "internal_types.h"
+#include "utils/logger.h"
 
 static coded_value_t **rs_encode(uint8_t *data, size_t sz_data, int k, int n) {
+    LOG_TRACE("start to encode value");
     size_t sz_share = (sz_data + k - 1) / k;
 
     uint8_t **shares = malloc(sizeof(uint8_t *) * n);
@@ -39,6 +41,7 @@ static coded_value_t **rs_encode(uint8_t *data, size_t sz_data, int k, int n) {
         SAFE_ASSERT(cv != NULL);
         cvs[i] = cv;
     }
+    LOG_TRACE("finish encoding value");
     return cvs;
 }
 #endif // RS_HELPER_H_

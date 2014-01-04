@@ -142,18 +142,11 @@ int mpaxos_commit_raw(groupid_t *gids, size_t sz_gids, uint8_t *data,
         r->data_c = NULL;
     }
     memcpy(r->gids, gids, sz_gids * sizeof(groupid_t));
+    mpaxos_async_enlist(r);    
 }
 
 int mpaxos_commit_req(mpaxos_req_t *req) {
-    mpaxos_aysnc_enlist(req);    
-}
-
-int mpaxos_req_create() {
-
-}
-
-int mpaxos_req_destroy() {
-
+    mpaxos_async_enlist(req);    
 }
 
 pthread_mutex_t add_last_cb_sid_mutex = PTHREAD_MUTEX_INITIALIZER;
