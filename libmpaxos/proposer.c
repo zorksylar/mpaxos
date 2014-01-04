@@ -519,12 +519,15 @@ void broadcast_msg_accept_c(txn_info_t *tinfo,
         send_to(nid, RPC_ACCEPT, buf, sz_msg);
         free(buf);
 
+    }
+
+    prop_p->coded_value = cvs[0];
+    // TODO free from 0?
+    for (int i = 1; i < arr_nid->nelts; i++) {
         free(cvs[i]->value.data);
         free(cvs[i]);
     }
     free(cvs);
-
-    
 }
 
 //TODO check, many things are wrong.

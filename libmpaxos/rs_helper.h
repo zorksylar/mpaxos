@@ -31,7 +31,7 @@ static coded_value_t **rs_encode(uint8_t *data, size_t sz_data, int k, int n) {
     coded_value_t **cvs = malloc(sizeof(coded_value_t **) * n);
     for (int i = 0; i < n; i++) {
         coded_value_t *cv = malloc(sizeof(coded_value_t));
-        mpaxos__coded_value_t__init(cvs[i]);
+        mpaxos__coded_value_t__init(cv);
         cv->sz = sz_data; 
         cv->k = k;
         cv->n = n;
