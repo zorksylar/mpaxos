@@ -19,6 +19,10 @@
 #include "utils/hostname.h"
 #include "utils/logger.h"
 
+
+
+int flush__;
+
 int mpaxos_config_load(const char *cf) {
     LOG_INFO("loading config file %s ...\n", cf);
 
@@ -87,6 +91,27 @@ int mpaxos_config_load(const char *cf) {
     if (val_obj != NULL) {
         const char* nodename = json_object_get_string(val_obj);
         mpaxos_config_set("nodename", nodename); 
+    }
+
+    val_obj = json_object_object_get(new_obj, "flush");
+    if (val_obj != NULL) {
+        const char *str_flush = json_object_get_string(val_obj);
+        if (strcmp(str_flush, "ABANDON") == 0) {
+            flush__ = ABANDON; 
+        } else if (strcmp(str_flush, "MEM") == 0) {
+            flush__ = MEM; 
+        } else if (strcmp(str_flush, "ASYNC") == 0) {
+            flush__ = ASYNC; 
+        } else if (strcmp(str_flush, "SYNC") == 0) {
+            flush__ = SYNC; 
+        } else {
+            LOG_ERROR("unknown flush strategy.");
+            SAFE_ASSERT(0);
+        }
+    } else {
+        // what default? ASYNC? 
+        flush__ = ASYNC;
+        LOG_INFO("default flush mode is async");
     }
 
     json_object_put(new_obj);

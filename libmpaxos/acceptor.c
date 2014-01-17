@@ -193,13 +193,7 @@ rpc_state* handle_msg_accept(const msg_accept_t *msg_accp_ptr) {
         ballotid_t maxbid = ainfo->bid_max;
         if (rid->bid >= maxbid) {
             response->ack = MPAXOS__ACK_ENUM__SUCCESS;
-            // [FIXME]  write to disk in a meaningful way.
-            uint8_t *value = NULL;
-            size_t sz_value = 0;
-            prop_pack(msg_accp_ptr->prop, &value, &sz_value);
-            db_put_raw((uint8_t*)rid, sizeof(roundid_t), value, sz_value, 1);
-            prop_buf_free(value);
-
+            record_accepted(rid, msg_accp_ptr->prop);
             proposal_t **p = apr_array_push(ainfo->arr_prop);
             *p = apr_pcalloc(ainfo->mp, sizeof(proposal_t));
             prop_cpy(*p, msg_accp_ptr->prop, ainfo->mp);

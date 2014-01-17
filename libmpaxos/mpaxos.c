@@ -145,7 +145,29 @@ int mpaxos_commit_raw(groupid_t *gids, size_t sz_gids, uint8_t *data,
     mpaxos_async_enlist(r);    
 }
 
-int mpaxos_commit_req(mpaxos_req_t *req) {
+int mpaxos_commit_req(mpaxos_req_t *r) {
+    mpaxos_req_t *req = (mpaxos_req_t *) malloc(sizeof(mpaxos_req_t));
+    req->sz_gids = r->sz_gids;
+    req->sz_data = r->sz_data;
+    req->sz_data_c = r->sz_data_c;
+    req->cb_para = r->cb_para;
+    req->sync = 0; // TODO currently only async mode.
+    req->n_retry = 0;
+
+    if (req->sz_data > 0) {
+        req->data = (uint8_t *) malloc(req->sz_data);
+        memcpy(req->data, r->data, req->sz_data);
+    } else {
+        req->data = NULL;
+    }
+
+    if (req->sz_data_c > 0) {
+        req->sz_data_c = (uint8_t *) malloc(req->sz_data_c);
+        memcpy(req->data_c, r->data_c, req->sz_data);
+    } else {
+        req->data_c = NULL;
+    }
+
     mpaxos_async_enlist(req);    
 }
 

@@ -1,4 +1,3 @@
-
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -19,6 +18,8 @@
 #include "internal_types.h"
 #include "include_all.h"
 
+
+extern int flush__;
 
 apr_pool_t *mp_recorder_;
 apr_hash_t *ht_value_;        //instid_t -> value_t
@@ -57,6 +58,34 @@ bool has_value(groupid_t gid, slotid_t sid) {
 }
 */
 
+void record_accepted(roundid_t *rid, proposal_t *prop) {
+    int flush;
+    if (flush__ == ASYNC) {
+        flush = 0; 
+    } else if (flush__ == SYNC) {
+        flush = 1;
+    } else {
+        // do not have to record.
+        return;
+    }
+    // [FIXME]  write to disk in a meaningful way?
+    uint8_t *value = NULL;
+    size_t sz_value = 0;
+    prop_pack(prop, &value, &sz_value);
+    db_put_raw((uint8_t*)rid, sizeof(roundid_t), value, sz_value, 1);
+    prop_buf_free(value);
+}
+
+/**
+ * TODO Just keep a mark is enough, without flush.
+ */
+void record_decided(proposal_t *prop) {
+
+}
+
+/**
+ * [TODO] reduce the duplication of accept table and record table. 
+ */
 void record_proposal(proposal_t *prop) {
     proposal_t *p = apr_palloc(mp_recorder_, sizeof(proposal_t));
     prop_cpy(p, prop, mp_recorder_);
@@ -70,7 +99,6 @@ void record_proposal(proposal_t *prop) {
         apr_hash_set(ht_value_, iid, sizeof(instid_t), prop);
         apr_thread_mutex_unlock(mx_value_);
 
-        
         // renew the newest value number
         apr_thread_mutex_lock(mx_newest_);
         slotid_t *sid_old = apr_hash_get(ht_newest_, &rid->gid, sizeof(groupid_t));    
@@ -80,7 +108,6 @@ void record_proposal(proposal_t *prop) {
         }
         apr_thread_mutex_unlock(mx_newest_);
     }
-    
 }
 
 //int put_instval(groupid_t gid, slotid_t sid, uint8_t *data,

@@ -49,7 +49,7 @@ def build(bld):
 def _enable_debug(conf):
     if os.getenv("DEBUG") == "1":
         Logs.pprint("PINK", "Debug support enabled")
-        conf.env.append_value("CFLAGS", "-Wall -Wno-unused -pthread -O0 -g -rdynamic -fno-omit-frame-pointer".split())
+        conf.env.append_value("CFLAGS", "-Wall -Wno-unused -pthread -O0 -g -rdynamic -fno-omit-frame-pointer -fno-strict-aliasing".split())
         conf.env.append_value("LINKFLAGS", "-Wall -Wno-unused -O0 -g -rdynamic -fno-omit-frame-pointer".split())
     else:
         conf.env.append_value("CFLAGS", "-Wall -O2 -pthread".split())

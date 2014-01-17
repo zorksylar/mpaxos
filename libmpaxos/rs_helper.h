@@ -26,7 +26,7 @@ static coded_value_t **rs_encode(uint8_t *data, size_t sz_data, int k, int n) {
     for (int i = 0; i < (n-k); i++) {
         nums[i] = i + k;
     }
-    fec_encode(fec, shares, shares+k, nums, n-k, sz_share);
+    fec_encode(fec, shares, shares + k, nums, n - k, sz_share);
 
     coded_value_t **cvs = malloc(sizeof(coded_value_t **) * n);
     for (int i = 0; i < n; i++) {

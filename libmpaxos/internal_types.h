@@ -13,6 +13,11 @@
 #define BID_PRIOR 1
 #define BID_NORMAL 2
 
+#define ABANDON (0)
+#define MEM     (1)
+#define ASYNC   (2)
+#define SYNC    (3)
+
 typedef Mpaxos__InstidT instid_t;
 typedef Mpaxos__RoundidT roundid_t;
 typedef Mpaxos__AckEnum ack_enum;
@@ -64,6 +69,7 @@ typedef struct {
     uint32_t n_retry;   // how many times it has been retried.
     apr_time_t tm_start; 
     apr_time_t tm_end;
+    int sync;   // asynchronous callback or wait until finish.
 } mpaxos_req_t;
 
 typedef struct {
