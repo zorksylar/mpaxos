@@ -25,7 +25,7 @@ void acceptor_init();
 
 void acceptor_destroy();
 
-void acceptor_forget();
+void acceptor_forget(groupid_t, slotid_t);
 
 rpc_state* handle_msg_prepare(const msg_prepare_t *);
 

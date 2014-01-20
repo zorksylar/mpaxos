@@ -41,6 +41,11 @@ void accp_info_create(accp_info_t **a, instid_t iid) {
 }
 
 void accp_info_destroy(accp_info_t *ainfo) {
+    for (int i = 0; i < ainfo->arr_prop->nelts; i++) {
+        proposal_t *prop = ((proposal_t**) ainfo->arr_prop->elts)[i];
+        prop_free(prop);
+    }
+
     apr_thread_mutex_destroy(ainfo->mx);
     apr_pool_destroy(ainfo->mp);
     free(ainfo);
@@ -49,7 +54,7 @@ void accp_info_destroy(accp_info_t *ainfo) {
 accp_info_t* get_accp_info(groupid_t gid, slotid_t sid) {
     apr_thread_mutex_lock(mx_accp_);
     instid_t iid;
-    memset(&iid, 0, sizeof(iid));
+    memset(&iid, 0, sizeof(instid_t));
     iid.gid = gid;
     iid.sid = sid;
     accp_info_t *ainfo = NULL;
@@ -63,12 +68,24 @@ accp_info_t* get_accp_info(groupid_t gid, slotid_t sid) {
     return ainfo;
 }
 
-void acceptor_forget() {
-    // TODO clean the promise and accept map.
-    // This is only temporary for debug 
-    //apr_pool_clear(accept_pool);
-    //promise_ht_ = apr_hash_make(accept_pool);
-    //accept_ht_ = apr_hash_make(accept_pool);
+void acceptor_forget(groupid_t gid, slotid_t sid) {
+    instid_t iid;
+    memset(&iid, 0, sizeof(instid_t));
+    iid.gid = gid;
+    iid.sid = sid;
+    accp_info_t *ainfo = NULL;
+    size_t sz;
+
+    apr_thread_mutex_lock(mx_accp_);
+    ainfo = apr_hash_get(ht_accp_info_, &iid, sizeof(instid_t));
+    if (ainfo != NULL) {
+        apr_hash_set(ht_accp_info_, &iid, sizeof(instid_t), NULL);
+    } 
+    apr_thread_mutex_unlock(mx_accp_);
+        
+    if (ainfo != NULL) {
+        accp_info_destroy(ainfo);
+    }
 }
 
 rpc_state* handle_msg_prepare(const msg_prepare_t *p_msg_prep) {

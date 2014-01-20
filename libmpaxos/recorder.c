@@ -1,30 +1,16 @@
-#include <inttypes.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <json/json.h>
-#include <apr_hash.h>
-#include <apr_queue.h>
-#include <apr_thread_pool.h>
-#include "mpaxos/mpaxos.h"
-#include "proposer.h"
-#include "acceptor.h"
-#include "view.h"
-#include "slot_mgr.h"
-#include "utils/logger.h"
-#include "utils/mtime.h"
-#include "utils/mlock.h"
-#include "comm.h"
-#include "async.h"
-#include "internal_types.h"
-#include "include_all.h"
+/**
+ *
+ */ 
 
+#include "include_all.h"
 
 extern int flush__;
 
 static apr_pool_t *mp_recorder_;
 static apr_hash_t *ht_value_;        //instid_t -> value_t
 //static apr_hash_t *ht_newest_;     // gid -> sid
-static mpr_hash_t *ht_newest_;     // gid -> sid
+static mpr_hash_t *ht_newest_;      // gid -> sid
+static mpr_hash_t *ht_decided_;     // instid_t -> 1
 static apr_thread_mutex_t *mx_value_;
 static apr_thread_mutex_t *mx_newest_;
 
@@ -39,12 +25,16 @@ void recorder_init() {
     apr_pool_create(&mp_recorder_, NULL);
     ht_value_ = apr_hash_make(mp_recorder_);
     mpr_hash_create_ex(&ht_newest_, MPR_HASH_THREAD_UNSAFE);
+    mpr_hash_create_ex(&ht_decided_, MPR_HASH_THREAD_SAFE);
+
     apr_thread_mutex_create(&mx_value_, APR_THREAD_MUTEX_UNNESTED, mp_recorder_);
     apr_thread_mutex_create(&mx_newest_, APR_THREAD_MUTEX_UNNESTED, mp_recorder_);
 }
 
 void recorder_destroy() {
     apr_pool_destroy(mp_recorder_);
+    mpr_hash_destroy(ht_newest_);
+    mpr_hash_destroy(ht_decided_);
 }
 
 int get_instval(uint32_t gid, uint32_t in, char* buf,
@@ -53,21 +43,10 @@ int get_instval(uint32_t gid, uint32_t in, char* buf,
     return 0;
 }
 
-/*
-bool has_value(groupid_t gid, slotid_t sid) {
-    instid_t *p_iid = (instid_t *) calloc(1, sizeof(instid_t));
-    p_iid->gid = gid;
-    p_iid->sid = sid;
-
-    value_t* v = apr_hash_get(ht_value_, p_iid, sizeof(instid_t));
-
-    free(p_iid);
-    return (v != NULL);
-}
-*/
 
 /**
- *
+ * For every value accepted. must call this function. 
+ * Notice that if deciding an unaccepted value, must accept it first.
  */
 void record_accepted(roundid_t *rid, proposal_t *prop) {
     int flush;
@@ -75,41 +54,52 @@ void record_accepted(roundid_t *rid, proposal_t *prop) {
         flush = 0; 
     } else if (flush__ == SYNC) {
         flush = 1;
+    } else if (flush__ == MEM) {
+        // copy it into value ht.
     } else {
         // do not have to record.
         return;
     }
     // [FIXME]  write to disk in a meaningful way?
-    uint8_t *value = NULL;
-    size_t sz_value = 0;
-    prop_pack(prop, &value, &sz_value);
-    db_put_raw((uint8_t*)rid, sizeof(roundid_t), value, sz_value, 1);
-    prop_buf_free(value);
+    //
+    instid_t *iid = malloc(sizeof(instid_t));
+    memset(iid, 0, sizeof(instid_t));
+    iid->gid = rid->gid;
+    iid->sid = rid->sid;
+
+    if (flush__ == MEM) {
+        proposal_t *p = NULL; 
+        apr_thread_mutex_lock(mx_value_);
+        p = apr_hash_get(ht_value_, iid, sizeof(instid_t));      
+        if (p != NULL) {
+            prop_free(p);
+        }
+        p = prop_copy(prop);
+        apr_hash_set(ht_value_, iid, sizeof(instid_t), p);
+        apr_thread_mutex_unlock(mx_value_);
+    } else {
+        uint8_t *value = NULL;
+        size_t sz_value = 0;
+        prop_pack(prop, &value, &sz_value);
+        db_put_raw((uint8_t*)iid, sizeof(instid_t), value, sz_value, 1);
+        prop_buf_free(value);
+    }
+
 }
 
 /**
- * TODO Just keep a mark is enough, without flush. You should record the accepted prop before you decide it.
+ * Just keep a mark is enough, without flush. 
+ * You should record the accepted prop before you decide it.
  */
 void record_decided(proposal_t *prop) {
-
-}
-
-/**
- * Deprecated. Do you want to use such a thing to record?
- * [TODO] reduce the duplication of accept table and record table. 
- */
-void record_proposal(proposal_t *prop) {
-    proposal_t *p = apr_palloc(mp_recorder_, sizeof(proposal_t));
-    prop_cpy(p, prop, mp_recorder_);
-    
-    for (int i = 0; i < p->n_rids; i++) {
-        roundid_t *rid = p->rids[i];
-        instid_t *iid = (instid_t *) apr_pcalloc(mp_recorder_, sizeof(instid_t));
-        iid->gid = rid->gid;
-        iid->sid = rid->sid;
-        apr_thread_mutex_lock(mx_value_);
-        apr_hash_set(ht_value_, iid, sizeof(instid_t), prop);
-        apr_thread_mutex_unlock(mx_value_);
+    for (int i = 0; i <prop->n_rids; i++) {
+        roundid_t *rid = prop->rids[i];
+        instid_t iid;
+        memset(&iid, 0, sizeof(instid_t));
+        iid.gid = rid->gid;
+        iid.sid = rid->sid;
+        uint8_t v = 1;
+        mpr_hash_set(ht_decided_, &iid, sizeof(instid_t), &v, sizeof(uint8_t)); 
 
         // renew the newest value number
         apr_thread_mutex_lock(mx_newest_);

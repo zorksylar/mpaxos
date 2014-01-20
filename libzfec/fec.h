@@ -14,11 +14,11 @@ typedef struct {
   gf* enc_matrix;
 } fec_t;
 
-#if defined(_MSC_VER)
+//#if defined(_MSC_VER)
 // actually, some of the flavors (i.e. Enterprise) do support restrict
 //#define restrict __restrict
 #define restrict
-#endif
+//#endif
 
 /**
  * param k the number of blocks required to reconstruct

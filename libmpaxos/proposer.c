@@ -400,7 +400,10 @@ int phase_2_async_after(txn_info_t *tinfo) {
     tinfo->req->sids = malloc(tinfo->sz_rids * sizeof(slotid_t));
     proposal_t *prop = (tinfo->prop_max != NULL) ? tinfo->prop_max : tinfo->prop_self;
     SAFE_ASSERT(prop != NULL);
-    record_proposal(prop);
+
+    // TODO should this be by broadcast msg decide?
+    record_decided(prop);
+    //record_proposal(prop);
     
     // TODO do not send to oneself.
     // send LEARNED to everybody.
@@ -409,6 +412,13 @@ int phase_2_async_after(txn_info_t *tinfo) {
     mpaxos_req_t *req = tinfo->req;
 
     apr_thread_mutex_unlock(tinfo->mx);
+
+    for (int i = 0; i < prop->n_rids; i++) {
+        roundid_t *rid = prop->rids[i];
+        if (rid->sid > 10) {
+            acceptor_forget(rid->gid, rid->sid - 10);
+        }
+    }
 
     // FIXME notify the controller to detach.
     detach_txn_info(tinfo);
