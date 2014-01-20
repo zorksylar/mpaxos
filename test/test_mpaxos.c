@@ -125,13 +125,14 @@ void test_async_start() {
     apr_thread_mutex_lock(mx_exit_);
     apr_atomic_set32(&n_group_running, n_group);
     time_begin_ = apr_time_now();
-    for (int i = 1; i <= n_group; i++) {
+    for (int i = 0; i < n_group; i++) {
         groupid_t *gids = (groupid_t*) malloc(n_batch_ * sizeof(groupid_t));
         groupid_t gid_start = (i * n_batch_) + group_begin_;
         for (int j = 0; j < n_batch_; j++) {
             gids[j] = gid_start + j;
         }
         apr_atomic_inc32(&n_req_);
+        LOG_INFO("trying to commit a raw request, first group id: %x", gids[0]);
         mpaxos_commit_raw(gids, n_batch_, TEST_DATA, SZ_DATA, TEST_DATA_C, SZ_DATA_C, (void*)(uintptr_t)(n_tosend-1));
    //     printf("n_tosend: %d\n", n_tosend);
     }

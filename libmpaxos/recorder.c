@@ -21,16 +21,24 @@
 
 extern int flush__;
 
-apr_pool_t *mp_recorder_;
-apr_hash_t *ht_value_;        //instid_t -> value_t
-apr_hash_t *ht_newest_;     // gid -> sid
-apr_thread_mutex_t *mx_value_;
-apr_thread_mutex_t *mx_newest_;
+static apr_pool_t *mp_recorder_;
+static apr_hash_t *ht_value_;        //instid_t -> value_t
+//static apr_hash_t *ht_newest_;     // gid -> sid
+static mpr_hash_t *ht_newest_;     // gid -> sid
+static apr_thread_mutex_t *mx_value_;
+static apr_thread_mutex_t *mx_newest_;
+
+
+typedef struct {
+    slotid_t sid;
+    int is_me;
+} nextsid_t;
+
 
 void recorder_init() {
     apr_pool_create(&mp_recorder_, NULL);
     ht_value_ = apr_hash_make(mp_recorder_);
-    ht_newest_ = apr_hash_make(mp_recorder_);    
+    mpr_hash_create_ex(&ht_newest_, MPR_HASH_THREAD_UNSAFE);
     apr_thread_mutex_create(&mx_value_, APR_THREAD_MUTEX_UNNESTED, mp_recorder_);
     apr_thread_mutex_create(&mx_newest_, APR_THREAD_MUTEX_UNNESTED, mp_recorder_);
 }
@@ -58,6 +66,9 @@ bool has_value(groupid_t gid, slotid_t sid) {
 }
 */
 
+/**
+ *
+ */
 void record_accepted(roundid_t *rid, proposal_t *prop) {
     int flush;
     if (flush__ == ASYNC) {
@@ -77,13 +88,14 @@ void record_accepted(roundid_t *rid, proposal_t *prop) {
 }
 
 /**
- * TODO Just keep a mark is enough, without flush.
+ * TODO Just keep a mark is enough, without flush. You should record the accepted prop before you decide it.
  */
 void record_decided(proposal_t *prop) {
 
 }
 
 /**
+ * Deprecated. Do you want to use such a thing to record?
  * [TODO] reduce the duplication of accept table and record table. 
  */
 void record_proposal(proposal_t *prop) {
@@ -101,68 +113,43 @@ void record_proposal(proposal_t *prop) {
 
         // renew the newest value number
         apr_thread_mutex_lock(mx_newest_);
-        slotid_t *sid_old = apr_hash_get(ht_newest_, &rid->gid, sizeof(groupid_t));    
-        if (sid_old == NULL || *sid_old < rid->sid) {
-            // [FIXME] seems wrong
-            apr_hash_set(ht_newest_, &rid->gid, sizeof(groupid_t), &rid->sid);
+        nextsid_t *nextsid = NULL;
+        size_t sz;
+        mpr_hash_get(ht_newest_, &rid->gid, sizeof(groupid_t), &nextsid, &sz); 
+        if (nextsid == NULL) {
+            nextsid_t ns;
+            ns.sid = 0;
+            ns.is_me = 0;
+            LOG_TRACE("newest id for gid: %d does not exist", rid->gid);
+            mpr_hash_set(ht_newest_, &rid->gid, sizeof(groupid_t), &ns, sizeof(nextsid_t));
+            mpr_hash_get(ht_newest_, &rid->gid, sizeof(groupid_t), &nextsid, &sz); 
+        }
+
+        if (nextsid->sid <= rid->sid) {
+            nextsid->sid = rid->sid + 1;
+            nextsid->is_me = (prop->nid == get_local_nid()) ? 1 : 0;
+            LOG_TRACE("update the newest sid. gid:%d, sid:%"PRIx64, rid->gid, nextsid->sid);
         }
         apr_thread_mutex_unlock(mx_newest_);
     }
 }
 
-//int put_instval(groupid_t gid, slotid_t sid, uint8_t *data,
-//        size_t sz_data) {
-//    apr_thread_mutex_lock(mx_value_);
-//    
-//    instid_t *iid = (instid_t *) apr_pcalloc(mp_recorder_, sizeof(instid_t));
-//    iid->gid = gid;
-//    iid->sid = sid;
-//    value_t *val = (value_t *) apr_palloc(mp_recorder_, sizeof(value_t));
-//    val->data = (uint8_t *) apr_palloc(mp_recorder_, sz_data);
-//    val->len = sz_data;
-//    memcpy (val->data, data, sz_data);
-//
-//    // TODO [IMPROVE] just put in memory now, should be put in bdb.
-//    apr_hash_set(ht_value_, iid, sizeof(instid_t), val);
-//
-//    // renew the newest value number
-//    slotid_t *sid_old = apr_hash_get(ht_newest_, &gid, sizeof(groupid_t));    
-//    if (sid_old == NULL || *sid_old < sid) {
-//        // do something
-//        groupid_t *g_new = apr_pcalloc(mp_recorder_, sizeof(groupid_t));
-//        slotid_t *s_new = apr_pcalloc(mp_recorder_, sizeof(slotid_t));
-//        *g_new = gid;
-//        *s_new = sid;
-//        apr_hash_set(ht_newest_, g_new, sizeof(groupid_t), s_new);
-//    }
-//
-//    // TODO [IMPROVE] free some space in the map.
-//    // forget
-//    acceptor_forget();
-//    apr_thread_mutex_unlock(mx_value_);
-//    return 0;
-//}
-
 slotid_t get_newest_sid(groupid_t gid, int *is_me) {
     apr_thread_mutex_lock(mx_newest_);
-    slotid_t *s = apr_hash_get(ht_newest_, &gid, sizeof(groupid_t));    
-    apr_thread_mutex_unlock(mx_newest_);
-    slotid_t sid = (s == NULL) ? 0: *s;
-    instid_t iid;
-    memset(&iid, 0, sizeof(instid_t));
-    iid.gid = gid;
-    iid.sid = sid;
-    if (sid == 0) {
-        // never seen value before.
-        *is_me = 0;
-    } else {
-        apr_thread_mutex_lock(mx_value_);
-        proposal_t *prop = apr_hash_get(ht_value_, &iid, sizeof(instid_t));
-        apr_thread_mutex_unlock(mx_value_);
-        SAFE_ASSERT(prop != NULL);
-        *is_me = (prop->nid == get_local_nid()) ? 1 : 0;
+    nextsid_t *nextsid = NULL;
+    size_t sz;
+    mpr_hash_get(ht_newest_, &gid, sizeof(groupid_t), &nextsid, &sz);    
+    if (nextsid == NULL) {
+        LOG_TRACE("get newest id for gid: %d does not exist", gid);
+        nextsid_t ns;
+        ns.sid = 1;
+        ns.is_me = 0;
+        mpr_hash_set(ht_newest_, &gid, sizeof(groupid_t), &ns, sizeof(nextsid_t));
+        mpr_hash_get(ht_newest_, &gid, sizeof(groupid_t), &nextsid, &sz); 
     }
-    
-    LOG_DEBUG("newest sid %lu for gid %u", sid, gid);
+    slotid_t sid = nextsid->sid;
+    *is_me = nextsid->is_me;
+    apr_thread_mutex_unlock(mx_newest_);
+    LOG_DEBUG("next newest sid %"PRIx64" for gid %d", nextsid->sid, gid);
     return sid;
 }

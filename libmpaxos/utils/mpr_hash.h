@@ -19,7 +19,9 @@
 extern "C" {
 #endif
 
-#define MPR_HASH_THREAD_SAFE (0x1)
+#define MPR_HASH_THREAD_UNSAFE  (0x0)
+#define MPR_HASH_THREAD_SAFE    (0x1)
+
 
 typedef struct {
     apr_pool_t *mp;

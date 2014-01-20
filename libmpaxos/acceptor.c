@@ -119,6 +119,8 @@ rpc_state* handle_msg_prepare(const msg_prepare_t *p_msg_prep) {
             LOG_DEBUG("prepare is not ok. bid: %"PRIx64
                 ", seen max bid: %"PRIx64, rid->bid, ainfo->bid_max);
         } else {
+            LOG_DEBUG("receive an undefined bid. bid: %"PRIx64
+                ", seen max bid: %"PRIx64, rid->bid, ainfo->bid_max);
             SAFE_ASSERT(0);
         }
   
@@ -156,23 +158,23 @@ rpc_state* handle_msg_prepare(const msg_prepare_t *p_msg_prep) {
     return ret_state;
 }
 
-rpc_state* handle_msg_accept(const msg_accept_t *msg_accp_ptr) {
-    SAFE_ASSERT(msg_accp_ptr->h->t == MPAXOS__MSG_HEADER__MSGTYPE_T__ACCEPT);
+rpc_state* handle_msg_accept(const msg_accept_t *msg_accp) {
+    SAFE_ASSERT(msg_accp->h->t == MPAXOS__MSG_HEADER__MSGTYPE_T__ACCEPT);
 
     // This is the msg_accepted for response
     msg_accepted_t msg_accd = MPAXOS__MSG_ACCEPTED__INIT;
     msg_header_t msg_header = MPAXOS__MSG_HEADER__INIT;
     msg_accd.h = &msg_header;
     msg_accd.h->t = MPAXOS__MSG_HEADER__MSGTYPE_T__ACCEPTED;
-    msg_accd.h->tid = msg_accp_ptr->h->tid;
+    msg_accd.h->tid = msg_accp->h->tid;
     msg_accd.h->nid = get_local_nid();
 
     msg_accd.n_ress = 0;
     msg_accd.ress = (response_t **)
-            malloc(msg_accp_ptr->prop->n_rids * sizeof(response_t *));
+            malloc(msg_accp->prop->n_rids * sizeof(response_t *));
 
-    for (int i = 0; i < msg_accp_ptr->prop->n_rids; i++) {
-        roundid_t *rid = msg_accp_ptr->prop->rids[i];
+    for (int i = 0; i < msg_accp->prop->n_rids; i++) {
+        roundid_t *rid = msg_accp->prop->rids[i];
         if (!is_in_group(rid->gid)) {
             continue;
         }
@@ -193,10 +195,11 @@ rpc_state* handle_msg_accept(const msg_accept_t *msg_accp_ptr) {
         ballotid_t maxbid = ainfo->bid_max;
         if (rid->bid >= maxbid) {
             response->ack = MPAXOS__ACK_ENUM__SUCCESS;
-            record_accepted(rid, msg_accp_ptr->prop);
+            record_accepted(rid, msg_accp->prop);
             proposal_t **p = apr_array_push(ainfo->arr_prop);
-            *p = apr_pcalloc(ainfo->mp, sizeof(proposal_t));
-            prop_cpy(*p, msg_accp_ptr->prop, ainfo->mp);
+            // *p = apr_pcalloc(ainfo->mp, sizeof(proposal_t));
+            // prop_cpy(*p, msg_accp->prop, ainfo->mp);
+            *p = prop_copy(msg_accp->prop);
         } else if (rid->bid < maxbid) {
             response->ack = MPAXOS__ACK_ENUM__ERR_BID;
         } else {

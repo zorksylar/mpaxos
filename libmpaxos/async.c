@@ -70,6 +70,7 @@ txnid_t gen_txn_id() {
 void mpaxos_async_enlist(mpaxos_req_t *req) {
     mpr_dag_push(dag_, req->gids, req->sz_gids, req);
     LOG_DEBUG("request %d enlisted.", apr_atomic_read32(&n_req_));
+    LOG_TRACE("the first group in this request, gid:%x", req->gids[0]);
 }
 
 
