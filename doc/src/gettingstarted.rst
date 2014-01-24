@@ -91,7 +91,7 @@ Then the following ``hello_mpaxos.c``:
        mpaxos_start();
        mpaxos_req_t req;
        memset(&req, 0, sizeof(mpaxos_req_t);
-       req->data = data_
+       req->data = data;
        req->sz_data = 20;
         
        mpaxos_commit_req(req);
