@@ -112,9 +112,8 @@ sudo apt-get install check -y
 <span class="kt">char</span> <span class="n">data</span><span class="p">[</span><span class="mi">20</span><span class="p">]</span> <span class="o">=</span> <span class="s">&quot;Hello MPaxos!</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">;</span>
 <span class="kt">int</span> <span class="n">exit</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
 
-<span class="kt">void</span> <span class="nf">cb</span><span class="p">(</span><span class="kt">groupid_t</span><span class="o">*</span> <span class="n">gids</span><span class="p">,</span> <span class="kt">size_t</span> <span class="n">sz_gids</span><span class="p">,</span> <span class="kt">slotid_t</span><span class="o">*</span> <span class="n">sids</span><span class="p">,</span>
-        <span class="kt">uint8_t</span> <span class="o">*</span><span class="n">data</span><span class="p">,</span> <span class="kt">size_t</span> <span class="n">sz_data</span><span class="p">,</span> <span class="kt">void</span><span class="o">*</span> <span class="n">para</span><span class="p">)</span> <span class="p">{</span>
-    <span class="n">printf</span><span class="p">(</span><span class="s">&quot;%s&quot;</span><span class="p">,</span> <span class="n">data</span><span class="p">);</span>
+<span class="kt">void</span> <span class="nf">cb</span><span class="p">(</span><span class="kt">mpaxos_req_t</span> <span class="o">*</span><span class="n">req</span><span class="p">)</span> <span class="p">{</span>
+    <span class="n">printf</span><span class="p">(</span><span class="s">&quot;%s&quot;</span><span class="p">,</span> <span class="n">req</span><span class="o">-&gt;</span><span class="n">data</span><span class="p">);</span>
     <span class="n">exit</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
 <span class="p">}</span>
 
@@ -124,9 +123,12 @@ sudo apt-get install check -y
     <span class="n">mpaxos_config_set</span><span class="p">(</span><span class="s">&quot;nodename&quot;</span><span class="p">,</span> <span class="s">&quot;node1&quot;</span><span class="p">);</span>
     <span class="n">mpaxos_set_cb_god</span><span class="p">(</span><span class="n">cb</span><span class="p">);</span>
     <span class="n">mpaxos_start</span><span class="p">();</span>
-    <span class="kt">groupid_t</span> <span class="n">gid</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+    <span class="kt">mpaxos_req_t</span> <span class="n">req</span><span class="p">;</span>
+    <span class="n">memset</span><span class="p">(</span><span class="o">&amp;</span><span class="n">req</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="k">sizeof</span><span class="p">(</span><span class="kt">mpaxos_req_t</span><span class="p">);</span>
+    <span class="n">req</span><span class="o">-&gt;</span><span class="n">data</span> <span class="o">=</span> <span class="s">&quot;Hello, MPaxos!&quot;</span><span class="p">;</span>
+    <span class="n">req</span><span class="o">-&gt;</span><span class="n">sz_data</span> <span class="o">=</span> <span class="mi">15</span><span class="p">;</span>
 
-    <span class="n">mpaxos_commit</span><span class="p">(</span><span class="o">&amp;</span><span class="n">gid</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="mi">20</span><span class="p">,</span> <span class="nb">NULL</span><span class="p">);</span>
+    <span class="n">mpaxos_commit_req</span><span class="p">(</span><span class="n">req</span><span class="p">);</span>
     <span class="k">while</span> <span class="p">(</span><span class="o">!</span><span class="n">exit</span><span class="p">)</span>  <span class="p">{</span>
         <span class="n">sleep</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span>
     <span class="p">}</span>

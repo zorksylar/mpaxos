@@ -78,9 +78,8 @@ Then the following ``hello_mpaxos.c``:
    char data[20] = "Hello MPaxos!\n";
    int exit = 0;
 
-   void cb(groupid_t* gids, size_t sz_gids, slotid_t* sids, 
-           uint8_t *data, size_t sz_data, void* para) {
-       printf("%s", data); 
+   void cb(mpaxos_req_t *req) {
+       printf("%s", req->data); 
        exit = 1;
    }
    
@@ -90,9 +89,12 @@ Then the following ``hello_mpaxos.c``:
        mpaxos_config_set("nodename", "node1");
        mpaxos_set_cb_god(cb);
        mpaxos_start();
-       groupid_t gid = 1;
+       mpaxos_req_t req;
+       memset(&req, 0, sizeof(mpaxos_req_t);
+       req->data = "Hello, MPaxos!";
+       req->sz_data = 15;
         
-       mpaxos_commit(&gid, 1, data, 20, NULL);
+       mpaxos_commit_req(req);
        while (!exit)  {
            sleep(1);
        }
