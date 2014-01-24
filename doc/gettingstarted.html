@@ -125,7 +125,7 @@ sudo apt-get install check -y
     <span class="n">mpaxos_start</span><span class="p">();</span>
     <span class="kt">mpaxos_req_t</span> <span class="n">req</span><span class="p">;</span>
     <span class="n">memset</span><span class="p">(</span><span class="o">&amp;</span><span class="n">req</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="k">sizeof</span><span class="p">(</span><span class="kt">mpaxos_req_t</span><span class="p">);</span>
-    <span class="n">req</span><span class="o">-&gt;</span><span class="n">data</span> <span class="o">=</span> <span class="n">data_</span>
+    <span class="n">req</span><span class="o">-&gt;</span><span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="p">;</span>
     <span class="n">req</span><span class="o">-&gt;</span><span class="n">sz_data</span> <span class="o">=</span> <span class="mi">20</span><span class="p">;</span>
 
     <span class="n">mpaxos_commit_req</span><span class="p">(</span><span class="n">req</span><span class="p">);</span>
