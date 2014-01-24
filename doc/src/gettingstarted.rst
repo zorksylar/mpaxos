@@ -91,8 +91,8 @@ Then the following ``hello_mpaxos.c``:
        mpaxos_start();
        mpaxos_req_t req;
        memset(&req, 0, sizeof(mpaxos_req_t);
-       req->data = "Hello, MPaxos!";
-       req->sz_data = 15;
+       req->data = data_
+       req->sz_data = 20;
         
        mpaxos_commit_req(req);
        while (!exit)  {
