@@ -32,25 +32,27 @@
 // besides, that logger sucks too.
 #define LOG_INFO(x, ...) printf("[%s:%d] [ II ] "x"\n", __FILE__, __LINE__, ##__VA_ARGS__)
 
-uint32_t n_tosend = 1000;
-static int n_group = 1;
 static uint32_t group_begin_ = 1;
 int async = 1;
-int run = 1;
-static int is_exit_ = 1;
 static int t_sleep_ = 2;
+
+// following is read from command line.
+static char* ag_config_ = "./config/config.1.1";
+static int ag_n_group_ = 10; 
+static int ag_n_batch_ = 1;
+static int ag_n_send_ = 100;
+static int ag_sz_data_ = 100;
+static int ag_sz_data_c_ = 0;
+static int ag_quit_ = 1;
 
 static apr_pool_t *mp_test_;
 static apr_thread_pool_t *tp_test_;
 static apr_thread_cond_t *cd_exit_; 
 static apr_thread_mutex_t *mx_exit_;
 
-
 static uint8_t* TEST_DATA = NULL;
-static size_t SZ_DATA = 100;
 static uint8_t* TEST_DATA_C = NULL;
-static size_t SZ_DATA_C = 100;
-//static size_t SZ_DATA_C = 0;
+
 
 static apr_uint32_t ready_to_exit = 0;
 
@@ -66,7 +68,7 @@ static apr_uint32_t n_cb_ = 0;
 void test_destroy();
 
 void exit_on_finish() {
-    if (is_exit_) {
+    if (ag_quit_) {
         apr_sleep(2000000);
         LOG_INFO("Goodbye! I'm about to destroy myself.");
         fflush(stdout);
@@ -90,8 +92,8 @@ void exit_on_finish() {
 void stat_result() {
     double period = (time_end_ - time_begin_) / 1000000.0;
     int period_ms = (time_end_ - time_begin_) / 1000;
-    uint64_t msg_count = n_tosend * n_group;
-    uint64_t data_count = msg_count * SZ_DATA;
+    uint64_t msg_count = ag_n_send_ * ag_n_group_;
+    uint64_t data_count = msg_count * ag_sz_data_;
     double prop_rate = (msg_count + 0.0) / period;
     LOG_INFO("%"PRIu64" proposals commited in %dms, rate:%.2f props/s",
             msg_count, period_ms, prop_rate);
@@ -106,7 +108,7 @@ void cb(groupid_t* gids, size_t sz_gids, slotid_t* sids,
     uint32_t n_left = (uint32_t)(uintptr_t)para;
     if (n_left-- > 0) {
         apr_atomic_inc32(&n_req_);
-        mpaxos_commit_raw(gids, sz_gids, TEST_DATA, SZ_DATA, TEST_DATA_C, SZ_DATA_C, (void*)(uintptr_t)n_left);
+        mpaxos_commit_raw(gids, sz_gids, TEST_DATA, ag_sz_data_, TEST_DATA_C, ag_sz_data_c_, (void*)(uintptr_t)n_left);
     } else {
         apr_atomic_dec32(&n_group_running);
         if (apr_atomic_read32(&n_group_running) == 0) {
@@ -123,17 +125,17 @@ void cb(groupid_t* gids, size_t sz_gids, slotid_t* sids,
 
 void test_async_start() {
     apr_thread_mutex_lock(mx_exit_);
-    apr_atomic_set32(&n_group_running, n_group);
+    apr_atomic_set32(&n_group_running, ag_n_group_);
     time_begin_ = apr_time_now();
-    for (int i = 0; i < n_group; i++) {
-        groupid_t *gids = (groupid_t*) malloc(n_batch_ * sizeof(groupid_t));
-        groupid_t gid_start = (i * n_batch_) + group_begin_;
+    for (int i = 0; i < ag_n_group_; i++) {
+        groupid_t *gids = (groupid_t*) malloc(ag_n_batch_ * sizeof(groupid_t));
+        groupid_t gid_start = (i * ag_n_batch_) + group_begin_;
         for (int j = 0; j < n_batch_; j++) {
             gids[j] = gid_start + j;
         }
         apr_atomic_inc32(&n_req_);
         LOG_INFO("trying to commit a raw request, first group id: %x", gids[0]);
-        mpaxos_commit_raw(gids, n_batch_, TEST_DATA, SZ_DATA, TEST_DATA_C, SZ_DATA_C, (void*)(uintptr_t)(n_tosend-1));
+        mpaxos_commit_raw(gids, n_batch_, TEST_DATA, ag_sz_data_, TEST_DATA_C, ag_sz_data_c_, (void*)(uintptr_t)(ag_n_send_-1));
    //     printf("n_tosend: %d\n", n_tosend);
     }
     
@@ -166,7 +168,7 @@ void* APR_THREAD_FUNC test_group(apr_thread_t *p_t, void *v) {
 
     //Keep sending
 
-    int n = n_tosend;
+    int n = ag_n_send_;
     do {
         if (async) {
 //            commit_async(&gid, 1, val, val_size, NULL);
@@ -208,51 +210,76 @@ void test_destroy() {
 }
 
 
+void usage(char *progname) {
+    fprintf(stderr, "usage: %s ", progname);
+    fprintf(stderr, "[-c config_file] [-s n_send] [-g n_group] [-b n_batch] [-d sz_data_] [-e sz_data_c] [-q quit]\n");
+    fprintf(stderr, "where:\n");
+    fprintf(stderr, "\t-c identifies the path to configuration file, default: ./config/config.1.1\n");
+    fprintf(stderr, "\t-s identifies the number of proposals to issue for each Paxos group, default: 100\n");
+    fprintf(stderr, "\t-g identifies the number of Paxos groups, default: 10\n");
+    fprintf(stderr, "\t-b identifies the number of Paxos groups to batch together, default: 1\n");
+    fprintf(stderr, "\t-d identifies the data size in each proposal, default: 100\n");
+    fprintf(stderr, "\t-e identifies the data size to be coded in each proposal, default: 0\n");
+    fprintf(stderr, "\t-q identifies whether to quit after finish requests. default: 1\n");
+}
+
 int main(int argc, char **argv) {
-    
-    int c = 1;
-    // initialize from config
-    char *config = NULL;
-    if (argc > c) {
-        config = argv[c];
-    } else {
-        printf("Usage: %s config [run=1] [n_tosend=1000] [n_group=1] "
-                "[async=1] [is_exit_=1] [sleep_time=2] [group_begin=1] "
-                "[n_batch=1] [sz_data=100]\n", argv[0]);
-        //config = "./config/config.1.1";
-        exit(0);
+    char ch;
+    while ((ch = getopt(argc, argv, "c:s:g:b:d:e:q:h")) != EOF) {
+        switch (ch) {
+        case 'h':
+            usage(argv[1]);
+            return 0;
+        case 'c':
+            ag_config_ = optarg;
+            break;
+        case 's':
+            ag_n_send_ = atoi(optarg);
+            break;
+        case 'g':
+            ag_n_send_ = atoi(optarg);
+            break;;
+        case 'b':
+            ag_n_batch_ = atoi(optarg);
+            break;
+        case 'd':
+            ag_sz_data_ = atoi(optarg);
+            break;
+        case 'e':
+            ag_sz_data_c_ = atoi(optarg);
+            break;
+        case 'q':
+            ag_quit_ = atoi(optarg);
+            break;
+        }
     }
-    
+
     // init mpaxos
     mpaxos_init();
     
-    int ret = mpaxos_config_load(config);
+    int ret = mpaxos_config_load(ag_config_);
     if (ret != 0) {
         mpaxos_destroy();
         exit(10);
     }
     
-    run = (argc > ++c) ? atoi(argv[c]) : run;
-    n_tosend = (argc > ++c) ? atoi(argv[c]) : n_tosend;
-    n_group = (argc > ++c) ? atoi(argv[c]) : n_group;
-    async = (argc > ++c) ? atoi(argv[c]) : async;
-    is_exit_ = (argc > ++c) ? atoi(argv[c]) : is_exit_;
-    t_sleep_ = (argc > ++c) ? atoi(argv[c]) : t_sleep_;
-    group_begin_ = (argc > ++c) ? atoi(argv[c]) : group_begin_;
-    n_batch_ = (argc > ++c) ? atoi(argv[c]) : n_batch_;
-    SZ_DATA = (argc > ++c) ? atoi(argv[c]) : SZ_DATA;
-    TEST_DATA = calloc(SZ_DATA, 1);
-    TEST_DATA_C = (SZ_DATA_C > 0) ? malloc(SZ_DATA_C) : NULL;
+    if (ag_sz_data_ > 0) {
+        TEST_DATA = calloc(ag_sz_data_, 1);
+    }
+
+    if (ag_sz_data_c_ > 0) {
+        TEST_DATA_C = malloc(ag_sz_data_c_);
+    }
     
-    LOG_INFO("test for %d messages.", n_tosend);
-    LOG_INFO("test for %d threads.", n_group);
+    LOG_INFO("test for %d messages.", ag_n_send_);
+    LOG_INFO("test for %d threads.", ag_n_group_);
     LOG_INFO("async mode %d", async);
 
     // start mpaxos service
     mpaxos_set_cb_god(cb);
     mpaxos_start();
 
-    if (run) {
+    if (ag_n_send_ > 0 && ag_n_group_ > 0) {
         // wait some time to wait for everyone starts
         sleep(t_sleep_);
         
@@ -262,21 +289,21 @@ int main(int argc, char **argv) {
         if (async) {
             test_async_start();
         } else {
-            apr_time_t begin_time = apr_time_now();
-
-            for (uint32_t i = 0; i < n_group; i++) {
-                apr_thread_pool_push(tp_test_, test_group, (void*)(uintptr_t)(i+1), 0, NULL);
-            }
-            while (apr_thread_pool_tasks_count(tp_test_) > 0) {
-                sleep(0);
-            }
-
-            apr_thread_pool_destroy(tp_test_);
-            apr_time_t end_time = apr_time_now();
-            double time_period = (end_time - begin_time) / 1000000.0;
-            uint64_t n_msg = n_tosend * n_group;
-            LOG_INFO("in total %"PRIu64" proposals commited in %.2fsec," 
-                    "rate:%.2f props per sec.", n_msg, time_period, n_msg / time_period); 
+//            apr_time_t begin_time = apr_time_now();
+//
+//            for (uint32_t i = 0; i < n_group; i++) {
+//                apr_thread_pool_push(tp_test_, test_group, (void*)(uintptr_t)(i+1), 0, NULL);
+//            }
+//            while (apr_thread_pool_tasks_count(tp_test_) > 0) {
+//                sleep(0);
+//            }
+//
+//            apr_thread_pool_destroy(tp_test_);
+//            apr_time_t end_time = apr_time_now();
+//            double time_period = (end_time - begin_time) / 1000000.0;
+//            uint64_t n_msg = n_tosend * n_group;
+//            LOG_INFO("in total %"PRIu64" proposals commited in %.2fsec," 
+//                    "rate:%.2f props per sec.", n_msg, time_period, n_msg / time_period); 
         }
     }
 
