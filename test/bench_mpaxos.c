@@ -102,13 +102,18 @@ void stat_result() {
             (data_count + 0.0) / (1024 * 1024) /period);
 }
 
-void cb(groupid_t* gids, size_t sz_gids, slotid_t* sids, 
-        uint8_t *data, size_t sz_data, uint8_t *data_c, size_t sz_data_c, void* para) {
+//void cb(groupid_t* gids, size_t sz_gids, slotid_t* sids, 
+//        uint8_t *data, size_t sz_data, uint8_t *data_c, size_t sz_data_c, void* para) {
+
+void cb(mpaxos_req_t *req) {
     apr_atomic_inc32(&n_cb_);
-    uint32_t n_left = (uint32_t)(uintptr_t)para;
+    uint32_t n_left = (uint32_t)(uintptr_t)req->cb_para;
     if (n_left-- > 0) {
         apr_atomic_inc32(&n_req_);
-        mpaxos_commit_raw(gids, sz_gids, TEST_DATA, ag_sz_data_, TEST_DATA_C, ag_sz_data_c_, (void*)(uintptr_t)n_left);
+        req->cb_para = (void*)(uintptr_t)n_left;
+//        mpaxos_commit_raw(gids, sz_gids, TEST_DATA, ag_sz_data_, TEST_DATA_C, ag_sz_data_c_, (void*)(uintptr_t)n_left);
+        mpaxos_commit_req(req);
+        
     } else {
         apr_atomic_dec32(&n_group_running);
         if (apr_atomic_read32(&n_group_running) == 0) {
@@ -228,7 +233,7 @@ int main(int argc, char **argv) {
     while ((ch = getopt(argc, argv, "c:s:g:b:d:e:q:h")) != EOF) {
         switch (ch) {
         case 'h':
-            usage(argv[1]);
+            usage(argv[0]);
             return 0;
         case 'c':
             ag_config_ = optarg;
