@@ -5,6 +5,7 @@
 #include "test_hostname.c"
 #include "test_mpr_hash.c"
 #include "test_protobuf.c"
+#include "test_zfec.c"
 //#include "test_rpc.c"
 
 
@@ -42,6 +43,9 @@ Suite *check_suite (void) {
     tcase_add_test(tc_proto, protobuf);
     suite_add_tcase(s, tc_proto);
 
+    TCase *tc_zfec = tcase_create("zfec");
+    tcase_add_test(tc_zfec, zfec);
+    suite_add_tcase(s, tc_zfec);
 //    TCase *tc_rpc = tcase_create("RPC");
 //    tcase_add_test(tc_rpc, rpc);
 //    suite_add_tcase(s, tc_util);
@@ -56,6 +60,7 @@ int main() {
 
     s = check_suite();
     sr = srunner_create(s);
+    srunner_set_fork_status(sr, CK_NOFORK);
     srunner_run_all(sr, CK_VERBOSE);
     number_failed = srunner_ntests_failed(sr);
     srunner_free(sr);

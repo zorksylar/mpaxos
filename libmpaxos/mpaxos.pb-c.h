@@ -3,7 +3,8 @@
 #ifndef PROTOBUF_C_mpaxos_2eproto__INCLUDED
 #define PROTOBUF_C_mpaxos_2eproto__INCLUDED
 
-#include <google/protobuf-c/protobuf-c.h>
+//#include <google/protobuf-c/protobuf-c.h>
+#include "protobuf-c.h"
 
 PROTOBUF_C_BEGIN_DECLS
 
@@ -12,6 +13,7 @@ typedef struct _Mpaxos__ProcessidT Mpaxos__ProcessidT;
 typedef struct _Mpaxos__InstidT Mpaxos__InstidT;
 typedef struct _Mpaxos__RoundidT Mpaxos__RoundidT;
 typedef struct _Mpaxos__MsgHeader Mpaxos__MsgHeader;
+typedef struct _Mpaxos__CodedValueT Mpaxos__CodedValueT;
 typedef struct _Mpaxos__Proposal Mpaxos__Proposal;
 typedef struct _Mpaxos__ResponseT Mpaxos__ResponseT;
 typedef struct _Mpaxos__MsgCommon Mpaxos__MsgCommon;
@@ -88,18 +90,34 @@ struct  _Mpaxos__MsgHeader
     , 0, 0, 0 }
 
 
+struct  _Mpaxos__CodedValueT
+{
+  ProtobufCMessage base;
+  uint32_t sz;
+  uint32_t k;
+  uint32_t n;
+  uint32_t id;
+  ProtobufCBinaryData value;
+};
+#define MPAXOS__CODED_VALUE_T__INIT \
+ { PROTOBUF_C_MESSAGE_INIT (&mpaxos__coded_value_t__descriptor) \
+    , 0, 0, 0, 0, {0,NULL} }
+
+
 struct  _Mpaxos__Proposal
 {
   ProtobufCMessage base;
   size_t n_rids;
   Mpaxos__RoundidT **rids;
   uint64_t tid;
-  ProtobufCBinaryData value;
   uint32_t nid;
+  protobuf_c_boolean has_value;
+  ProtobufCBinaryData value;
+  Mpaxos__CodedValueT *coded_value;
 };
 #define MPAXOS__PROPOSAL__INIT \
  { PROTOBUF_C_MESSAGE_INIT (&mpaxos__proposal__descriptor) \
-    , 0,NULL, 0, {0,NULL}, 0 }
+    , 0,NULL, 0, 0, 0,{0,NULL}, NULL }
 
 
 struct  _Mpaxos__ResponseT
@@ -280,6 +298,25 @@ Mpaxos__MsgHeader *
                       const uint8_t       *data);
 void   mpaxos__msg_header__free_unpacked
                      (Mpaxos__MsgHeader *message,
+                      ProtobufCAllocator *allocator);
+/* Mpaxos__CodedValueT methods */
+void   mpaxos__coded_value_t__init
+                     (Mpaxos__CodedValueT         *message);
+size_t mpaxos__coded_value_t__get_packed_size
+                     (const Mpaxos__CodedValueT   *message);
+size_t mpaxos__coded_value_t__pack
+                     (const Mpaxos__CodedValueT   *message,
+                      uint8_t             *out);
+size_t mpaxos__coded_value_t__pack_to_buffer
+                     (const Mpaxos__CodedValueT   *message,
+                      ProtobufCBuffer     *buffer);
+Mpaxos__CodedValueT *
+       mpaxos__coded_value_t__unpack
+                     (ProtobufCAllocator  *allocator,
+                      size_t               len,
+                      const uint8_t       *data);
+void   mpaxos__coded_value_t__free_unpacked
+                     (Mpaxos__CodedValueT *message,
                       ProtobufCAllocator *allocator);
 /* Mpaxos__Proposal methods */
 void   mpaxos__proposal__init
@@ -485,6 +522,9 @@ typedef void (*Mpaxos__RoundidT_Closure)
 typedef void (*Mpaxos__MsgHeader_Closure)
                  (const Mpaxos__MsgHeader *message,
                   void *closure_data);
+typedef void (*Mpaxos__CodedValueT_Closure)
+                 (const Mpaxos__CodedValueT *message,
+                  void *closure_data);
 typedef void (*Mpaxos__Proposal_Closure)
                  (const Mpaxos__Proposal *message,
                   void *closure_data);
@@ -527,6 +567,7 @@ extern const ProtobufCMessageDescriptor mpaxos__instid_t__descriptor;
 extern const ProtobufCMessageDescriptor mpaxos__roundid_t__descriptor;
 extern const ProtobufCMessageDescriptor mpaxos__msg_header__descriptor;
 extern const ProtobufCEnumDescriptor    mpaxos__msg_header__msgtype_t__descriptor;
+extern const ProtobufCMessageDescriptor mpaxos__coded_value_t__descriptor;
 extern const ProtobufCMessageDescriptor mpaxos__proposal__descriptor;
 extern const ProtobufCMessageDescriptor mpaxos__response_t__descriptor;
 extern const ProtobufCMessageDescriptor mpaxos__msg_common__descriptor;

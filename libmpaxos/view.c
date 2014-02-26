@@ -94,7 +94,7 @@ void set_node(const char *name, const char *addr, int port) {
     mpr_hash_set(ht_node_info_, name, strlen(name) + 1, &ninfo, sizeof(node_info_t));
     
     *(nodeid_t *)apr_array_push(arr_nodes_) = nid;
-    LOG_INFO("node added. name:%s, id:%" PRIu64", addr: %s, port: %d", 
+    LOG_INFO("node added. name:%s, id:%llu, addr: %s, port: %d", 
         name, nid, addr, port);
     free(ip);
 }

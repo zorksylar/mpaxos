@@ -25,4 +25,9 @@ void recorder_init();
 
 //int put_instval(groupid_t gid, slotid_t sid, uint8_t *data, size_t sz_data); 
 
-void record_proposal(proposal_t *prop);
+//void record_proposal(proposal_t *prop);
+
+void record_decided(proposal_t*);
+
+void record_accepted(roundid_t *rid, proposal_t *prop);
+

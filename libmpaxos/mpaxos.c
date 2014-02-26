@@ -28,6 +28,9 @@ void mpaxos_init() {
     apr_pool_create(&mp_global_, NULL);
     lastslot_ht_ = apr_hash_make(mp_global_);
 
+    // initialize db
+    db_init();
+
     // initialize view
     view_init();
 
@@ -75,6 +78,9 @@ void mpaxos_destroy() {
 
     // stop asynchrouns callback.
     mpaxos_async_destroy();
+
+    db_destroy();
+
     apr_pool_destroy(mp_global_);
     apr_terminate();
 
@@ -111,21 +117,68 @@ void unlock_group_commit(groupid_t* gids, size_t sz_gids) {
 /**
  * commit a request that is to be processed asynchronously. add the request to the aync job queue. 
  */
-int mpaxos_commit(groupid_t* gids, size_t sz_gids, uint8_t *data,
-        size_t sz_data, void* cb_para) {
-    // call the asynchrounous module.
-    mpaxos_async_enlist(gids, sz_gids, data, sz_data, cb_para);
-    return 0;
+
+int mpaxos_commit_raw(groupid_t *gids, size_t sz_gids, uint8_t *data, 
+    size_t sz_data, uint8_t *data_c, size_t sz_data_c, void* cb_para) {
+    mpaxos_req_t *r = (mpaxos_req_t *)malloc(sizeof(mpaxos_req_t));
+    r->gids = malloc(sz_gids * sizeof(groupid_t));
+    r->sz_gids = sz_gids;
+    r->sz_data = sz_data;
+    r->sz_data_c = sz_data_c;
+    r->cb_para = cb_para;
+    r->n_retry = 0;
+    r->id = gen_txn_id();
+    if (sz_data > 0) {
+        r->data = malloc(sz_data);
+        memcpy(r->data, data, sz_data);
+    } else {
+        r->data = NULL;
+    }
+    
+    if (sz_data_c > 0) {
+        r->data_c = malloc(sz_data_c);
+        memcpy(r->data_c, data_c, sz_data_c);
+    } else {
+        r->data_c = NULL;
+    }
+    memcpy(r->gids, gids, sz_gids * sizeof(groupid_t));
+    mpaxos_async_enlist(r);    
 }
 
-/**
- * commit a request that is to be processed asynchronously. add the request to the aync job queue. 
- */
-int commit_async(groupid_t* gids, size_t sz_gids, uint8_t *data,
-        size_t sz_data, void* cb_para) {
-    // call the asynchrounous module.
-    mpaxos_async_enlist(gids, sz_gids, data, sz_data, cb_para);
-    return 0;
+int mpaxos_commit_req(mpaxos_req_t *req) {
+    mpaxos_req_t *r = (mpaxos_req_t *) malloc(sizeof(mpaxos_req_t));
+    r->sz_gids = r->sz_gids;
+    r->sz_data = r->sz_data;
+    r->sz_data_c = r->sz_data_c;
+    r->cb_para = r->cb_para;
+    r->sync = 0; // TODO currently only async mode.
+    r->n_retry = 0;
+
+    if (r->sz_gids > 0) {
+        r->gids = malloc(r->sz_gids * sizeof(groupid_t)); 
+        mempcpy(r->gids, req->gids, r->sz_gids * sizeof(groupid_t));
+    } else if (r->sz_gids == 0) {
+        r->gids = malloc(1 * sizeof(groupid_t));
+        r->gids[0] = 1; 
+    } else {
+        SAFE_ASSERT(0);
+    }
+
+    if (r->sz_data > 0) {
+        r->data = (uint8_t *) malloc(r->sz_data);
+        memcpy(r->data, req->data, r->sz_data);
+    } else {
+        r->data = NULL;
+    }
+
+    if (r->sz_data_c > 0) {
+        r->sz_data_c = (uint8_t *) malloc(r->sz_data_c);
+        memcpy(r->data_c, req->data_c, r->sz_data);
+    } else {
+        r->data_c = NULL;
+    }
+
+    mpaxos_async_enlist(req);    
 }
 
 pthread_mutex_t add_last_cb_sid_mutex = PTHREAD_MUTEX_INITIALIZER;

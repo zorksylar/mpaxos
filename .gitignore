@@ -17,3 +17,4 @@ result*
 bin
 cscope.out
 .gdb_history
+_build

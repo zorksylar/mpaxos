@@ -39,18 +39,18 @@ void mpaxos_set_cb(groupid_t, mpaxos_cb_t);
 
 void mpaxos_set_cb_god(mpaxos_cb_t);
 
-int mpaxos_commit(groupid_t* gids, size_t sz_gids, uint8_t *data,
-        size_t sz_data, void* cb_para);
+int mpaxos_commit_raw(groupid_t* gids, size_t sz_gids, uint8_t *data,
+        size_t sz_data, uint8_t *data_c, size_t sz_data_c, void* cb_para);
 
 void add_group(groupid_t gid);
 
 void set_listen_port(int port);
 
-int commit_sync(groupid_t* gids, size_t sz_gids, uint8_t *val,
-        size_t sz_val);
-
-int commit_async(groupid_t* gids, size_t sz_gids, uint8_t *val,
-        size_t sz_val, void *cb_para);
+//int commit_sync(groupid_t* gids, size_t sz_gids, uint8_t *val,
+//        size_t sz_val);
+//
+//int commit_async(groupid_t* gids, size_t sz_gids, uint8_t *val,
+//        size_t sz_val, void *cb_para);
 
 int get_insnum(groupid_t gid, slotid_t** sid);
 

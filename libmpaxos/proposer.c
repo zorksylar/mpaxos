@@ -373,7 +373,17 @@ int mpaxos_accept(txn_info_t *tinfo) {
         prop->value.len = tinfo->req->sz_data;
         prop->nid = get_local_nid();
     }
-    broadcast_msg_accept(tinfo, prop);
+    
+    if (tinfo->req->sz_data_c > 0) {
+        // in RS-Paxos, regenerate the proposal by encoding the value.
+        // encode the data.  
+        // [FIXME] fixed k & n temprarily.
+        int k = 2, n = 5;
+        coded_value_t **cv = rs_encode(tinfo->req->data_c, tinfo->req->sz_data_c, k, n);
+        broadcast_msg_accept_c(tinfo, prop, cv);
+    } else {
+        broadcast_msg_accept(tinfo, prop);
+    }
 
 	/*----------------------------- phase II end ----------------------------*/
 	apr_thread_mutex_unlock(tinfo->mx);
@@ -390,15 +400,25 @@ int phase_2_async_after(txn_info_t *tinfo) {
     tinfo->req->sids = malloc(tinfo->sz_rids * sizeof(slotid_t));
     proposal_t *prop = (tinfo->prop_max != NULL) ? tinfo->prop_max : tinfo->prop_self;
     SAFE_ASSERT(prop != NULL);
-    record_proposal(prop);
+
+    // TODO should this be by broadcast msg decide?
+    record_decided(prop);
+    //record_proposal(prop);
     
-    // XXX do not send to oneself.
+    // TODO do not send to oneself.
     // send LEARNED to everybody.
     // broadcast_msg_decide(tinfo);
     
     mpaxos_req_t *req = tinfo->req;
 
     apr_thread_mutex_unlock(tinfo->mx);
+
+    for (int i = 0; i < prop->n_rids; i++) {
+        roundid_t *rid = prop->rids[i];
+        if (rid->sid > 10) {
+            acceptor_forget(rid->gid, rid->sid - 10);
+        }
+    }
 
     // FIXME notify the controller to detach.
     detach_txn_info(tinfo);
@@ -473,6 +493,52 @@ void broadcast_msg_accept(txn_info_t *tinfo,
     free(gids);
 }
 
+/**
+ * broadcast different proposals to different node.
+ * 
+ */
+void broadcast_msg_accept_c(txn_info_t *tinfo,
+        proposal_t *prop_p, coded_value_t **cvs) {
+    msg_accept_t msg_accp = MPAXOS__MSG_ACCEPT__INIT;
+    msg_header_t header = MPAXOS__MSG_HEADER__INIT;
+    msg_accp.h = &header;
+    msg_accp.h->t = MPAXOS__MSG_HEADER__MSGTYPE_T__ACCEPT;
+    msg_accp.h->tid = tinfo->tid;
+    msg_accp.h->nid = get_local_nid();
+    msg_accp.prop = prop_p;
+    
+
+    groupid_t* gids = (groupid_t*)malloc(prop_p->n_rids * sizeof(groupid_t));
+    for (int i = 0; i < prop_p->n_rids; i++) {
+        gids[i] = prop_p->rids[i]->gid;
+    }
+    SAFE_ASSERT(prop_p->n_rids == 1); // fow now only support one group.
+    
+    apr_array_header_t *arr_nid = get_view(gids[0]);
+    SAFE_ASSERT(arr_nid != NULL);
+
+    for (int i = 0; i < arr_nid->nelts; i++) {
+        nodeid_t nid = arr_nid->elts[i];
+        prop_p->coded_value = cvs[i];
+        size_t sz_msg = mpaxos__msg_accept__get_packed_size (&msg_accp);
+        log_message_rid("broadcast", "ACCEPT", msg_accp.h, prop_p->rids, prop_p->n_rids, sz_msg);
+
+        uint8_t *buf = (uint8_t *)malloc(sz_msg);
+        mpaxos__msg_accept__pack(&msg_accp, (uint8_t *)buf);
+  
+        send_to(nid, RPC_ACCEPT, buf, sz_msg);
+        free(buf);
+
+    }
+
+    prop_p->coded_value = cvs[0];
+    // TODO free from 0?
+    for (int i = 1; i < arr_nid->nelts; i++) {
+        free(cvs[i]->value.data);
+        free(cvs[i]);
+    }
+    free(cvs);
+}
 
 //TODO check, many things are wrong.
 void broadcast_msg_decide(txn_info_t *rinfo) {

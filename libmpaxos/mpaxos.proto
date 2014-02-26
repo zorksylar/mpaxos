@@ -16,6 +16,7 @@ message roundid_t {
     required uint64 bid = 3;
 }
 
+
 message msg_header {
     enum msgtype_t {
         PREPARE = 0;
@@ -32,13 +33,21 @@ message msg_header {
     required uint64 tid = 3;
 }
 
+message coded_value_t {
+    required uint32 sz = 1;
+    required uint32 k = 2;
+    required uint32 n = 3;
+    required uint32 id = 4;
+    required bytes value = 5; 
+}
+
 message proposal {
     repeated roundid_t rids = 1;
     required uint64 tid = 2;
-    required bytes value = 3;
-    required uint32 nid = 4;
+    required uint32 nid = 3;
+    optional bytes value = 4;
+    optional coded_value_t coded_value = 5;
 }
-
 
 enum ack_enum {
     SUCCESS = 0;

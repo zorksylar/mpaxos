@@ -126,7 +126,7 @@ int mpaxos_start_request(mpaxos_req_t *req) {
         rids[i]->gid = (req->gids[i]);
 
         int is_me = 0;
-        rids[i]->sid = get_newest_sid(req->gids[i], &is_me) + 1;
+        rids[i]->sid = get_newest_sid(req->gids[i], &is_me);
         if (!is_me) {
             is_saveprep = 0;
         }
@@ -150,7 +150,6 @@ int mpaxos_start_request(mpaxos_req_t *req) {
     }
     return 0;
 }
-
 
 txn_info_t* get_txn_info(txnid_t tid) {
     apr_thread_mutex_lock(mx_txn_info_);

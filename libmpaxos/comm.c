@@ -74,6 +74,7 @@ slotid_t send_to_slot_mgr(groupid_t gid, nodeid_t nid, uint8_t *data,
     free(s);
     return sid; 
 */
+    return 0;
 }
 /**
  * thread safe.

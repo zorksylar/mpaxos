@@ -67,23 +67,12 @@ txnid_t gen_txn_id() {
     return tid;
 }
 
-void mpaxos_async_enlist(groupid_t *gids, size_t sz_gids, uint8_t *data, 
-    size_t sz_data, void* cb_para) {
-    mpaxos_req_t *r = (mpaxos_req_t *)malloc(sizeof(mpaxos_req_t));
-    r->gids = malloc(sz_gids * sizeof(groupid_t));
-    r->data = malloc(sz_data);
-    r->sz_gids = sz_gids;
-    r->sz_data = sz_data;
-    r->cb_para = cb_para;
-    r->n_retry = 0;
-    r->id = gen_txn_id();
-    memcpy(r->gids, gids, sz_gids * sizeof(groupid_t));
-    memcpy(r->data, data, sz_data);
-
-    mpr_dag_push(dag_, gids, sz_gids, r);
-    
+void mpaxos_async_enlist(mpaxos_req_t *req) {
+    mpr_dag_push(dag_, req->gids, req->sz_gids, req);
     LOG_DEBUG("request %d enlisted.", apr_atomic_read32(&n_req_));
+    LOG_TRACE("the first group in this request, gid:%x", req->gids[0]);
 }
+
 
 /**
  * !!!IMPORTANT!!!
@@ -98,7 +87,7 @@ void invoke_callback(mpaxos_req_t* p_r) {
     // mpaxos_cb_t *cb = (cb_god_ != NULL) ? &cb_god_ : apr_hash_get(cb_ht_, p_r->gids, sizeof(gid));
     SAFE_ASSERT(cb_god_ != NULL);
     
-    (cb_god_)(p_r->gids, p_r->sz_gids, p_r->sids, p_r->data, p_r->sz_data, p_r->cb_para);
+    (cb_god_)(p_r->gids, p_r->sz_gids, p_r->sids, p_r->data, p_r->sz_data, p_r->data_c, p_r->sz_data_c, p_r->cb_para);
     // lock gid here.
     // check call history, and go forward. 
     // if there is value at sid + 1, then callback!
@@ -158,12 +147,14 @@ void* APR_THREAD_FUNC async_commit_job(apr_thread_t *th, void *v) {
 void async_ready_callback(mpaxos_req_t *req) {
     // TODO [fix] for call back
 	LOG_DEBUG("ready for call back.");
-    (cb_god_)(req->gids, req->sz_gids, req->sids, req->data, req->sz_data, req->cb_para);
+    (cb_god_)(req->gids, req->sz_gids, req->sids, req->data, req->sz_data, 
+            req->data_c, req->sz_data_c, req->cb_para);
     void *data = NULL;
     mpr_dag_pop(dag_, req->gids, req->sz_gids, &data);
     req->tm_end = apr_time_now();
     SAFE_ASSERT(data == req);
     LOG_DEBUG("a instance finish. start:%ld, end:%ld", req->tm_start, req->tm_end);
+    LOG_DEBUG("callback para: %x", req->cb_para);
     
     // free req
     free(req->sids);

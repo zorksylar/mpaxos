@@ -13,6 +13,11 @@
 #define BID_PRIOR 1
 #define BID_NORMAL 2
 
+#define ABANDON (0)
+#define MEM     (1)
+#define ASYNC   (2)
+#define SYNC    (3)
+
 typedef Mpaxos__InstidT instid_t;
 typedef Mpaxos__RoundidT roundid_t;
 typedef Mpaxos__AckEnum ack_enum;
@@ -28,6 +33,7 @@ typedef Mpaxos__MsgDecide msg_decide_t;
 typedef Mpaxos__MsgSlot msg_slot_t;
 typedef Mpaxos__MsgHeader msg_header_t;
 typedef Mpaxos__ProcessidT processid_t;
+typedef Mpaxos__CodedValueT coded_value_t;
 
 typedef uint8_t msg_type_t;
 
@@ -57,10 +63,13 @@ typedef struct {
     slotid_t *sids;
     uint8_t *data;
     size_t sz_data;
+    uint8_t *data_c;
+    size_t sz_data_c;
     void* cb_para;
     uint32_t n_retry;   // how many times it has been retried.
     apr_time_t tm_start; 
     apr_time_t tm_end;
+    int sync;   // asynchronous callback or wait until finish.
 } mpaxos_req_t;
 
 typedef struct {
@@ -102,6 +111,9 @@ static void prop_destroy(proposal_t *prop) {
     free(prop);
 }
 
+/**
+ * this is deprecated.
+ */
 static void prop_cpy(proposal_t *dest, const proposal_t *src, apr_pool_t *mp) {
     SAFE_ASSERT(mp != NULL);
     SAFE_ASSERT(src != NULL);
@@ -121,6 +133,56 @@ static void prop_cpy(proposal_t *dest, const proposal_t *src, apr_pool_t *mp) {
     dest->value.len = src->value.len;
     dest->value.data = (uint8_t *)apr_pcalloc(mp, src->value.len);
     memcpy(dest->value.data, src->value.data, src->value.len);
+}
+
+/**
+ * caller should call prop_free() to free the memory.
+ */
+static proposal_t *prop_copy(const proposal_t *src) {
+    SAFE_ASSERT(src != NULL);
+    proposal_t *dst = malloc(sizeof(proposal_t));
+    mpaxos__proposal__init(dst);
+    dst->nid = src->nid;
+    dst->n_rids = src->n_rids;
+    dst->rids = malloc(sizeof(instid_t*) * src->n_rids);
+    for (int i = 0; i < src->n_rids; i++) {
+        dst->rids[i] = (roundid_t *) malloc(sizeof(roundid_t));
+        mpaxos__roundid_t__init(dst->rids[i]);
+        dst->rids[i]->gid = src->rids[i]->gid;
+        dst->rids[i]->sid = src->rids[i]->sid;
+        dst->rids[i]->bid = src->rids[i]->bid;
+    }
+    dst->value.len = src->value.len;
+    dst->value.data = (uint8_t *) malloc(src->value.len);
+    memcpy(dst->value.data, src->value.data, src->value.len);
+    return dst;
+}
+
+static void prop_free(proposal_t *prop) {
+    for (int i = 0; i < prop->n_rids; i++) {
+        free(prop->rids[i]);
+    }
+    free(prop->value.data);
+    free(prop->rids); 
+    free(prop);
+}
+
+
+static void prop_pack(proposal_t *prop, uint8_t **buf, size_t *sz_buf) {
+    size_t sz = mpaxos__proposal__get_packed_size(prop);
+    *sz_buf = sz;
+    *buf =  malloc(sz);
+    mpaxos__proposal__pack(prop, *buf);
+}
+
+static void prop_buf_free(uint8_t *buf) {
+    free(buf);
+}
+
+
+// TODO
+static void prop_unpack(uint8_t *buf, size_t sz_buf, proposal_t **prop) {
+
 }
 
 #endif

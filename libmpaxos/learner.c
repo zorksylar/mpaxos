@@ -7,13 +7,14 @@
 #include "recorder.h"
 
 
+// FIXME first accept if not, then decide.
 void handle_msg_decide(msg_decide_t *msg_dcd) {
 /*
     roundid_t **rids = msg_dcd->prop->rids;
     decide_value(msg_dcd->prop->rids, msg_dcd->prop->n_rids, 
             msg_dcd->prop->value.data, msg_dcd->prop->value.len);
 */
-    record_proposal(msg_dcd->prop);
+    //record_proposal(msg_dcd->prop);
 }
 
 
