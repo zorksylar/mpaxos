@@ -11,6 +11,7 @@ top = "."
 out = "bin"
 
 pargs = ['--cflags', '--libs']
+CFLAGS = []
 
 def options(opt):
     opt.load("compiler_c")
@@ -18,6 +19,7 @@ def options(opt):
 def configure(conf):
     conf.load("compiler_c")
     
+    _enable_pic(conf)
     _enable_debug(conf)     #debug
     _enable_static(conf)    #static
 
@@ -41,10 +43,14 @@ def configure(conf):
 def build(bld):
     bld.stlib(source=bld.path.ant_glob("protobuf-c/*.c"), target="protobuf-c", includes="protobuf-c")
     bld.stlib(source=bld.path.ant_glob("libzfec/*.c"), target="zfec", includes="libzfec")
-    bld.stlib(source=bld.path.ant_glob("libmpaxos/rpc/*.c libmpaxos/*.c"), target="mpaxos", includes="include libzfec protobuf-c libmpaxos", use="APR APR-UTIL JSON PTHREAD LEVELDB zfec protobuf-c")
+#    bld.shlib(source=bld.path.ant_glob("libmpaxos/rpc/*.c libmpaxos/*.c"), target="mpaxos", includes="include libzfec protobuf-c libmpaxos", use="APR APR-UTIL JSON PTHREAD LEVELDB zfec protobuf-c")
+    bld.stlib(source=bld.path.ant_glob("libmpaxos/rpc/*.c libmpaxos/*.c"), target="mpaxos", includes="include libzfec protobuf-c libmpaxos", use="APR APR-UTIL JSON PTHREAD LEVELDB zfec protobuf-c", install_path="${LIBDIR}")
     bld.program(source="test/test_check.c", target="test_check.out", includes="include libmpaxos libzfec protobuf-c", use="mpaxos APR APR-UTIL CHECK zfec")
     bld.program(source="test/bench_mpaxos.c", target="bench_mpaxos.out", includes="include", use="mpaxos APR APR-UTIL")
     bld.program(source="test/bench_rpc.c", target="bench_rpc.out", includes="include libmpaxos protobuf-c libzfec", use="mpaxos APR APR-UTIL CHECK")
+
+    bld.install_files('${PREFIX}/include', bld.path.ant_glob('include/mpaxos/*.h'))
+    bld(features='subst', source='mpaxos.pc.in', target = 'mpaxos.pc', encoding = 'utf8', install_path = '${LIBDIR}/pkgconfig', CFLAGS = ' '.join( CFLAGS ), VERSION="0.0", PREFIX = bld.env.PREFIX )
 
 
 def _enable_debug(conf):
@@ -65,3 +71,8 @@ def _enable_static(conf):
         conf.env.append_value("CFLAGS", "-static")
         conf.env.append_value("LINKFLAGS", "-static")
         pargs.append('--static')
+
+def _enable_pic(conf):
+    conf.env.append_value("CFLAGS", "-fPIC")
+    conf.env.append_value("CXXFLAGS", "-fPIC")
+    conf.env.append_value("LINKFLAGS", "-fPIC")
