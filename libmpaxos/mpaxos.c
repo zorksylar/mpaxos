@@ -160,6 +160,7 @@ int mpaxos_commit_req(mpaxos_req_t *req) {
         r->gids = malloc(r->sz_gids * sizeof(groupid_t)); 
         memcpy(r->gids, req->gids, r->sz_gids * sizeof(groupid_t));
     } else if (r->sz_gids == 0) {
+        r->sz_gids = 1;
         r->gids = malloc(1 * sizeof(groupid_t));
         r->gids[0] = 1; 
     } else {

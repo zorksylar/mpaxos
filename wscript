@@ -13,6 +13,7 @@ out = "bin"
 pargs = ['--cflags', '--libs']
 CFLAGS = []
 
+
 def options(opt):
     opt.load("compiler_c")
 
@@ -36,21 +37,26 @@ def configure(conf):
     #c99
     conf.env.append_value("CFLAGS", "-std=c99")
 
+    conf.env.PREFIX = "/usr"
+    conf.env.LIBDIR = "/usr/lib"
+    conf.env.INCLUDEDIR = "/usr/include"
+
     #leveldb
     #conf.env.append_value("CFLAGS", "-lleveldb")
     #conf.env.append_value("LINKFLAGS", "-lleveldb")
 
 def build(bld):
+
     bld.stlib(source=bld.path.ant_glob("protobuf-c/*.c"), target="protobuf-c", includes="protobuf-c")
     bld.stlib(source=bld.path.ant_glob("libzfec/*.c"), target="zfec", includes="libzfec")
-#    bld.shlib(source=bld.path.ant_glob("libmpaxos/rpc/*.c libmpaxos/*.c"), target="mpaxos", includes="include libzfec protobuf-c libmpaxos", use="APR APR-UTIL JSON PTHREAD LEVELDB zfec protobuf-c")
-    bld.stlib(source=bld.path.ant_glob("libmpaxos/rpc/*.c libmpaxos/*.c"), target="mpaxos", includes="include libzfec protobuf-c libmpaxos", use="APR APR-UTIL JSON PTHREAD LEVELDB zfec protobuf-c", install_path="${LIBDIR}")
-    bld.program(source="test/test_check.c", target="test_check.out", includes="include libmpaxos libzfec protobuf-c", use="mpaxos APR APR-UTIL CHECK zfec")
-    bld.program(source="test/bench_mpaxos.c", target="bench_mpaxos.out", includes="include", use="mpaxos APR APR-UTIL")
-    bld.program(source="test/bench_rpc.c", target="bench_rpc.out", includes="include libmpaxos protobuf-c libzfec", use="mpaxos APR APR-UTIL CHECK")
+    bld.shlib(source=bld.path.ant_glob("libmpaxos/rpc/*.c libmpaxos/*.c"), target="mpaxos", includes="include libzfec protobuf-c libmpaxos", use="APR APR-UTIL JSON PTHREAD LEVELDB zfec protobuf-c", install_path="${PREFIX}/lib")
+    bld.stlib(source=bld.path.ant_glob("libmpaxos/rpc/*.c libmpaxos/*.c"), target="mpaxos", includes="include libzfec protobuf-c libmpaxos", use="APR APR-UTIL JSON PTHREAD LEVELDB zfec protobuf-c", install_path="${PREFIX}/lib")
+    bld.program(source="test/test_check.c", target="test_check.out", includes="include libmpaxos libzfec protobuf-c", use="mpaxos APR APR-UTIL CHECK zfec", install_path=False)
+    bld.program(source="test/bench_mpaxos.c", target="bench_mpaxos.out", includes="include", use="mpaxos APR APR-UTIL", install_path=False)
+    bld.program(source="test/bench_rpc.c", target="bench_rpc.out", includes="include libmpaxos protobuf-c libzfec", use="mpaxos APR APR-UTIL CHECK", install_path=False)
 
     bld.install_files('${PREFIX}/include', bld.path.ant_glob('include/mpaxos/*.h'))
-    bld(features='subst', source='mpaxos.pc.in', target = 'mpaxos.pc', encoding = 'utf8', install_path = '${LIBDIR}/pkgconfig', CFLAGS = ' '.join( CFLAGS ), VERSION="0.0", PREFIX = bld.env.PREFIX )
+    bld(features='subst', source='mpaxos.pc.in', target = 'mpaxos.pc', encoding = 'utf8', install_path = '${PREFIX}/lib/pkgconfig', CFLAGS = ' '.join( CFLAGS ), VERSION="0.0", PREFIX = bld.env.PREFIX )
 
 
 def _enable_debug(conf):

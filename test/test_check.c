@@ -6,6 +6,8 @@
 #include "test_mpr_hash.c"
 #include "test_protobuf.c"
 #include "test_zfec.c"
+#include "test_hello.c"
+
 //#include "test_rpc.c"
 
 
@@ -46,6 +48,10 @@ Suite *check_suite (void) {
     TCase *tc_zfec = tcase_create("zfec");
     tcase_add_test(tc_zfec, zfec);
     suite_add_tcase(s, tc_zfec);
+
+    TCase *tc_hello = tcase_create("hello");
+    tcase_add_test(tc_hello, hello);
+    suite_add_tcase(s, tc_hello);
 //    TCase *tc_rpc = tcase_create("RPC");
 //    tcase_add_test(tc_rpc, rpc);
 //    suite_add_tcase(s, tc_util);
