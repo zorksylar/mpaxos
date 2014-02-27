@@ -29,4 +29,4 @@ MPaxos provides an simple Write-Ahead-Log (WAL) and callback interface. To build
 How to build, and use MPaxos?
 -------------------------
 
-You can find a simple getting started guide in ./doc directory.
+Please follow this simple [getting started guide](http://mpaxos.com/doc/) on the project's website. It is also available in the ./doc directory of the source repo.

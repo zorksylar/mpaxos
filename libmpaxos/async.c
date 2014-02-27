@@ -78,7 +78,7 @@ void mpaxos_async_enlist(mpaxos_req_t *req) {
  * !!!IMPORTANT!!!
  * this function is NOT entirely thread-safe. same gid cannot call concurrently.
  */
-void invoke_callback(mpaxos_req_t* p_r) {
+void invoke_callback(mpaxos_req_t* req) {
     // TODO [fix]
     // check_callback(p_r);
     
@@ -87,7 +87,9 @@ void invoke_callback(mpaxos_req_t* p_r) {
     // mpaxos_cb_t *cb = (cb_god_ != NULL) ? &cb_god_ : apr_hash_get(cb_ht_, p_r->gids, sizeof(gid));
     SAFE_ASSERT(cb_god_ != NULL);
     
-    (cb_god_)(p_r->gids, p_r->sz_gids, p_r->sids, p_r->data, p_r->sz_data, p_r->data_c, p_r->sz_data_c, p_r->cb_para);
+    //(cb_god_)(p_r->gids, p_r->sz_gids, p_r->sids, p_r->data, p_r->sz_data, p_r->data_c, p_r->sz_data_c, p_r->cb_para);
+    (cb_god_)(req);
+    
     // lock gid here.
     // check call history, and go forward. 
     // if there is value at sid + 1, then callback!
@@ -95,6 +97,7 @@ void invoke_callback(mpaxos_req_t* p_r) {
 }
 
 void mpaxos_set_cb(groupid_t gid, mpaxos_cb_t cb) {
+    // TODO [xxx]
     //groupid_t *k = apr_palloc(pool_ptr, sizeof(gid));
     //mpaxos_cb_t *v = apr_palloc(pool_ptr, sizeof(cb));
     //*k = gid;
@@ -147,8 +150,10 @@ void* APR_THREAD_FUNC async_commit_job(apr_thread_t *th, void *v) {
 void async_ready_callback(mpaxos_req_t *req) {
     // TODO [fix] for call back
 	LOG_DEBUG("ready for call back.");
-    (cb_god_)(req->gids, req->sz_gids, req->sids, req->data, req->sz_data, 
-            req->data_c, req->sz_data_c, req->cb_para);
+    //(cb_god_)(req->gids, req->sz_gids, req->sids, req->data, req->sz_data, 
+    //        req->data_c, req->sz_data_c, req->cb_para);
+    (cb_god_)(req);
+
     void *data = NULL;
     mpr_dag_pop(dag_, req->gids, req->sz_gids, &data);
     req->tm_end = apr_time_now();

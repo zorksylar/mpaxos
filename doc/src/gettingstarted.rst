@@ -50,6 +50,12 @@ On successful build, you should read:
 
    'build' finished successfully (0.015s)
 
+Install the headers, libraries and pkg-config files.
+
+.. code-block:: bash
+
+   sudo ./waf install
+
 An Example
 ----------
 
@@ -74,13 +80,14 @@ Then the following ``hello_mpaxos.c``:
 .. code-block:: c
 
    #include <mpaxos.h>
+   #include <unistd.h>
    
-   char data[20] = "Hello MPaxos!\n";
-   int exit = 0;
+   unsigned char data_[20] = "Hello MPaxos!\n";
+   int exit_ = 0;
 
    void cb(mpaxos_req_t *req) {
-       printf("%s", req->data); 
-       exit = 1;
+       printf("%s", req->data);
+       exit_ = 1;
    }
    
    int main () {
@@ -90,22 +97,28 @@ Then the following ``hello_mpaxos.c``:
        mpaxos_set_cb_god(cb);
        mpaxos_start();
        mpaxos_req_t req;
-       memset(&req, 0, sizeof(mpaxos_req_t);
-       req->data = data;
-       req->sz_data = 20;
-        
-       mpaxos_commit_req(req);
-       while (!exit)  {
+       memset(&req, 0, sizeof(mpaxos_req_t));
+   
+       req.data = data_;
+       req.sz_data = 20;
+       mpaxos_commit_req(&req);
+       while (!exit_)  {
            sleep(1);
        }
-       mpaxos_destroy(); 
-   } 
+       mpaxos_destroy();
+   }
 
-Compile and run.
+Compile.
 
 .. code-block:: bash
    
-   gcc hello_mpaxos.c -lmpaxos -o hello_mpaxos.out
+   gcc hello_mpaxos.c `pkg-config --cflags --libs mpaxos` -o hello_mpaxos.out
+
+Run.
+
+.. code-block:: bash
+   
+   ./hello_mpaxos.out
 
 You should get:
 
