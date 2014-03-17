@@ -1,5 +1,5 @@
 
-#include "mpaxos.h"
+#include "mpaxos/mpaxos.h"
 
 static unsigned char data_[20] = "Hello MPaxos!\n";
 static int exit_ = 0;
