@@ -12,9 +12,9 @@
 #include "kvdb_log.h"
 
 static pthread_mutex_t operation_id_lock = PTHREAD_MUTEX_INITIALIZER;
-static operation_id_t operation_id = 0;
+static uint64_t operation_id = 0;
 
-operation_id_t genOperationId() {
+uint64_t genOperationId() {
     ScopeLock sl(&operation_id_lock);
     return operation_id++;
 }

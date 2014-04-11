@@ -1,0 +1,16 @@
+# to be put in /usr/lib/pkgconfig for archlinux 
+
+
+prefix=/usr
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include
+
+
+Name: leveldb
+Description: A fast key-value storage
+Version: 1.15.0-1
+Libs: -L${libdir} -lleveldb
+Cflags: -I${includedir}
+
+# from https://code.google.com/p/leveldb/issues/detail?id=139

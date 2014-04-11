@@ -5,9 +5,6 @@
 #include "lock.h"
 #include "mpaxos/mpaxos.h"
 
-
-typedef uint64_t operation_id_t;
-
 class Buf {
 public:
     uint8_t * buf;
@@ -30,10 +27,10 @@ public:
     }
 };
 
-operation_id_t genOperationId();
+uint64_t genOperationId();
 
 struct OperationParam {
-    operation_id_t id;            // operation id
+    uint64_t id;            // operation id
 };
 
 struct OperationResult {

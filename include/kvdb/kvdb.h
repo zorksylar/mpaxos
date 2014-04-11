@@ -4,7 +4,8 @@
 #include "mpaxos/mpaxos-types.h"
 
 #define KVDB_RET_OK 0
-#define KVDB_RET_UNINITIALISED -1
+#define KVDB_RET_UNINITIALIZED -1
+#define KVDB_OPEN_FAILED -100
 #define KVDB_GET_KEY_NOT_EXIST 200
 #define KVDB_DEL_KEY_NOT_EXIST 300
 
