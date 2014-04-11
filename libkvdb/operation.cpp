@@ -89,6 +89,16 @@ Buf wrap(OperationCode opcode, uint32_t table, Buf a, Buf b) {
     return wrap(Operation(opcode, table, a, b));
 }
 
+
+/**
+msg : 
+    | opcode(uint32_t) | gids_size (uint32_t) | { gid | arg_1{arg_len, arg_buf} | arg_2{...} | ... }[gids_size] |
+
+            |
+            V
+         arg_count
+**/
+
 Operation unwrap(Buf msg) {
     Operation ret;
     size_t offset = 0;

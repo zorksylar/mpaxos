@@ -7,15 +7,12 @@
 
 
 
-template <typename Key>
 class KeySharder {
 public :
     
-    typedef Key key_type;
 
     KeySharder(){};
     
-    KeySharder(key_type)
 
 }
 

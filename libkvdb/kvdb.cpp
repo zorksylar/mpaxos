@@ -5,6 +5,7 @@
 #include <map>
 
 #include "leveldb/db.h"
+#include "leveldb/write_batch.h"
 #include "kvdb/kvdb.h"
 #include "kvdb_log.h"
 #include "mpaxos/mpaxos.h"
@@ -13,68 +14,166 @@
 #include "lock.h"
 
 
+typedef int32_t kvdb_ret_t;
+
 static int initialized = 0;
 static leveldb::DB* db;
 static std::map<operation_id_t, Operation> operations;
 static std::map<groupid_t, leveldb::DB *> dbs;
 
 
-
-static int open_db(groupid_t gid) {
+// TODO : support multiple dbs
+static leveldb::Status open_db(groupid_t gid) {
     if (dbs[gid] != NULL) {
-      return 0;
+      return leveldb::Status::OK();
     }
-    char tmp[25];
-    memset(tmp, 0, sizeof(tmp));
 
+    assert(!!initialized);
+    dbs[gid] = db;
+    return leveldb::Status::OK();
 }
 
-void mpaxos_callback(groupid_t* ids, size_t sz_ids, slotid_t* slots, uint8_t *msg, size_t mlen, void * param) {
-  OperationParam * commit_param = (OperationParam *) param;
-  
-  std::string idstr = "";
-  std::string slotstr = "";
-  
-  for (int i = 0;i < sz_ids; i++) {
-    idstr += std::to_string(ids[i]);
-    slotstr += " " + std::to_string(slots[i]);
-  }
-
-  DD("mpaxos callback table.count = %zu, ids = [%s], slots = [%s], msg len = %zu, op_id = %lu", sz_ids, idstr.c_str(), slotstr.c_str(), mlen, (unsigned long)commit_param->id);
-
-  assert(sz_ids > 0);
-
-  groupid_t id = ids[0];        // for single table operation, id is enough
-
-  std::map<uint64_t, Operation>::iterator it;
-  it = operations.find(commit_param->id);
-  assert (it != operations.end());
-
-  Buf buf(msg, mlen);
-  Operation op = unwrap(buf);  // get operation from msg
-  
-  if (it != operations.end()) {
-    it->second.lock.lock();
-    it->second.code = op.code;
-    it->second.args = op.args;
-  }
-
-  if (op.parais == 1) {
-    assert((uintptr_t)op.tables == id);
-  } else {
-    assert(op.pairs == sz_ids);
-    for (int i = 0; i < sz_ids; i++) {
-      assert(op.tables[i] == ids[i]);
+static kvdb_ret_t kvdb_ret(const leveldb::Status &s) {
+    if (s.ok()) {
+        return KVDB_RET_OK;
+    } else if (s.IsNotFound()) {
+        return KVDB_NOT_FOUND;
+    } else if (s.IsCorruption()) {
+        return KVDB_CORRUPTION;
+    } else if (s.IsIOError()) {
+        return KVDB_IO_ERROR;
     }
     
-  }
+    return KVDB_RET_OK;
+}
 
-  int rs;
-  for (int i = 0; i < sz_ids; i++) {
-    rs = 
-  }
+
+void mpaxos_callback(mpaxos_req_t * req) {
+    OperationParam * commit_param = (OperationParam *) (req->cb_para);
+
+    std::string idstr = "";
+
+    for (int i = 0; i < req->sz_gids; i ++) {
+        idstr += std::to_string(req->gids[i]);
+    }
+
+    DD("mpaxos callback table.cound = %zu, ids = [%s], msg len = %zu, op_id = %lu", req->sz_gids, idstr.c_str(), req->sz_data, (unsigned long) commit_param->id);
+
+    assert(req->sz_ids > 0);
+    // TODO
+    assert(req->sz_gids == 1);
+
+    groupid_t table = req->gids[0]; 
+
+    std::map<operation_id_t, Operation>::iterator it;
+    it = operations.find(commit_param->id);
+    assert(it != operations.end());
+
+    Buf buf(req->data, req->sz_data);
+    Operation op = unwrap(buf);
+    
+    assert(op.code < OPERATION_TYPE_COUNT && op.code >= OP_NOP);
+
+    if (it != operations.end()) {
+        it->second.lock.lock();
+        it->second.code = op.code;
+        it->second.args = op.args;
+    }
+
+    if (op.pairs == 1) {
+        assert((uintptr_t)op.tables == table);
+    } else {
+        assert(op.pairs == req->sz_gids);
+        for (int i = 0; i < req->sz_gids; i++) {
+            assert(op.tables[i] == req->gids[i]);
+        }
+    }
+
+    leveldb::Status status;
+    for (int i = 0; i < req->sz_gids; i++) {
+        status = open_db(req->gids[i]);
+        if (false == status.ok()) {
+            if (it != operations.end()) {
+                it->second.result.errcode = kvdb_ret(status);
+            }
+            EE("error open db for %d, op = %d, msg = %s", table, op.code, status.ToString().c_str());
+            break;
+        }
+    }
+
+    if (true == status.ok()) {
+        if (op.code == OP_PUT || (op.code == OP_BATCH_PUT && op.pairs == 1)) {
+            leveldb::Slice dbkey((char *)op.args[0].buf, op.args[0].len);
+            leveldb::Slice dbval((char *)op.args[1].buf, op.args[1].len);
+
+            // TODO leveldb::WriteOptions() async or sync
+            status = db->Put(leveldb::WriteOptions(), dbkey, dbval);
+            if (it != operations.end()) {
+                it->second.result.errcode = kvdb_ret(status);
+                it->second.result.progress = status.ok() ? 1 : -1;
+            }
+            if (false == status.ok()) {
+                EE("error put value for %d", table);
+            }
+
+        } else if (op.code == OP_GET) {
+            leveldb::Slice dbkey((char *)op.args[0].buf, op.args[0].len);
+            leveldb::Slice dbval();
+            
+            // TODO : leveldb::ReadOptions() 
+            status = db->Get(leveldb::ReadOptions(), dbkey, &dbval);
+            if (false == status.ok()) {
+                EE("error get value for %d\n", table);
+            }
+            if (it != operations.end()) {
+                it->second.result.errcode = kvdb_ret(status);
+                it->second.result.progress = status.ok() ? 1 : -1;
+                if (true == status.ok()) {
+                    it->second.result.buf = (uint8_t *)dbval.data();
+                    it->second.result.len = dbval.size();
+                }
+            }
+       
+        } else if (op.code == OP_DEL) {
+            leveldb::Slice dbkey((char *)op.args[0].buf, op.oargs[0].len);
+            // TODO
+            status = db->Delete(leveldb::WriteOptions(), dbkey);
+            if (false == status.ok()) {
+                EE("error del value for %d\n", table);
+            }
+            if (it != operations.end()) {
+                it->second.result.errcode = kvdb_ret(status);
+                it->second.result.progress = status.ok() ? 1 : -1;
+            }
+
+        } else if (op.code == OP_BATCH_PUT) {
+            assert(op.pairs > 1);
+            leveldb::WriteBatch batch;
+            for (int p = 0; p < op.pairs; p++) {
+                leveldb::Slice dbkey((char *)op.args[2 * p].buf, op.args[2 * p].len);
+                leveldb::Slice dbval((char *)op.args[2 * p + 1].buf, op.args[2 * p + 1].len);
+                batch.Put(dbkey, dbval);
+            }
+
+            status = db->Write(leveldb::WriteOptions(), &batch);
+            if (false == status.ok()) {
+                EE("error batch put for tx %d, msg : %s", commit_param->id, status.ToString().c_str());
+            }
+            if (it != operations.end()) {
+                it->second.result.errcode = kvdb_ret(status):
+                it->second.result.progress = status.ok() ? 1 : -1;
+            }
+        }
+
+    }
+
+    if (it != operations.end()) {
+        it->second.lock.signal();
+        it->second.lock.unlock();
+    }
 
 }
+
 
 
 int kvdb_init(char *dbhome, char * mpaxos_config_path){
@@ -109,10 +208,21 @@ int kvdb_init(char *dbhome, char * mpaxos_config_path){
 }
 
 
+// TODO : multiple db support
 int kvdb_destroy() {
     if (!initialized) {
         return KVDB_RET_UNINITIALIZED;
     }
+
+    delete db;
+//    std::map<groupid_t, leveldb::DB *>::iterator dbit;
+//    for (dbit = dbs.begin(); dbit != dbs.end(); dbit ++) {
+//        delete (*dbit).second;
+//    }
+
+    mpaxos_stop();
+    mpaxos_destroy();
+    return KVDB_RET_OK;
 }
 
 

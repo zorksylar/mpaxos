@@ -3,11 +3,16 @@
 
 #include "mpaxos/mpaxos-types.h"
 
-#define KVDB_RET_OK 0
-#define KVDB_RET_UNINITIALIZED -1
-#define KVDB_OPEN_FAILED -100
-#define KVDB_GET_KEY_NOT_EXIST 200
-#define KVDB_DEL_KEY_NOT_EXIST 300
+#define KVDB_RET_UNINITIALIZED  -1
+#define KVDB_OPEN_FAILED        -100
+
+// inherent from leveldb
+#define KVDB_RET_OK             0
+#define KVDB_NOT_FOUND          -200
+#define KVDB_CORRUPTION         -300
+#define KVDB_NOT_SUPPORTED      -400
+#define KVDB_INVALID_ARGUMENT   -500
+#define KVDB_IO_ERROR           -600
 
 #ifdef __cplusplus
 extern "C" {
