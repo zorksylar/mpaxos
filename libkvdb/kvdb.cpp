@@ -155,6 +155,7 @@ void mpaxos_callback(mpaxos_req_t * req) {
                 batch.Put(dbkey, dbval);
             }
 
+            // TODO : WriteOptions()
             status = db->Write(leveldb::WriteOptions(), &batch);
             if (false == status.ok()) {
                 EE("error batch put for tx %d, msg : %s", commit_param->id, status.ToString().c_str());
