@@ -59,7 +59,7 @@ void mpaxos_callback(mpaxos_req_t * req) {
 
     DD("mpaxos callback table.cound = %zu, ids = [%s], msg len = %zu, op_id = %lu", req->sz_gids, idstr.c_str(), req->sz_data, (unsigned long) commit_param->id);
 
-    assert(req->sz_ids > 0);
+    assert(req->sz_gids > 0);
     // TODO
     assert(req->sz_gids == 1);
 
@@ -118,7 +118,7 @@ void mpaxos_callback(mpaxos_req_t * req) {
 
         } else if (op.code == OP_GET) {
             leveldb::Slice dbkey((char *)op.args[0].buf, op.args[0].len);
-            leveldb::Slice dbval();
+            std::string dbval;
             
             // TODO : leveldb::ReadOptions() 
             status = db->Get(leveldb::ReadOptions(), dbkey, &dbval);
@@ -129,13 +129,18 @@ void mpaxos_callback(mpaxos_req_t * req) {
                 it->second.result.errcode = kvdb_ret(status);
                 it->second.result.progress = status.ok() ? 1 : -1;
                 if (true == status.ok()) {
-                    it->second.result.buf = (uint8_t *)dbval.data();
+                    // TODO
+                    char * sbuf = (char *) malloc(dbval.size());
+                    assert(sbuf != NULL) ;
+                    memcpy(sbuf, dbval.data(), dbval.size());
+
+                    it->second.result.buf = (uint8_t *)sbuf;
                     it->second.result.len = dbval.size();
                 }
             }
        
         } else if (op.code == OP_DEL) {
-            leveldb::Slice dbkey((char *)op.args[0].buf, op.oargs[0].len);
+            leveldb::Slice dbkey((char *)op.args[0].buf, op.args[0].len);
             // TODO
             status = db->Delete(leveldb::WriteOptions(), dbkey);
             if (false == status.ok()) {
@@ -161,7 +166,7 @@ void mpaxos_callback(mpaxos_req_t * req) {
                 EE("error batch put for tx %d, msg : %s", commit_param->id, status.ToString().c_str());
             }
             if (it != operations.end()) {
-                it->second.result.errcode = kvdb_ret(status):
+                it->second.result.errcode = kvdb_ret(status);
                 it->second.result.progress = status.ok() ? 1 : -1;
             }
         }
@@ -230,7 +235,7 @@ int kvdb_destroy() {
 
 int kvdb_put(uint8_t * key, size_t klen, uint8_t * value, size_t vlen) {
     if (!initialized) {
-        return KVDB_RET_UNITIALIZED;
+        return KVDB_RET_UNINITIALIZED;
     }
     
     // Always map key to talbe 1 TODO
@@ -250,17 +255,17 @@ int kvdb_put(uint8_t * key, size_t klen, uint8_t * value, size_t vlen) {
     II("id: %lu, PUT mpaxos_commit_req table = %d, value len = %zu", op_id, table, commit.len);
     
     // TODO
-    mpaxos_req_t req = {};
-    req.gids = &table;
-    req.sz_gids = 1;
-    req.data = commit.buf;
-    req.sz_data = commit.len;
-    req.cb_para = (void *)param;
+    mpaxos_req_t* req = (mpaxos_req_t*) malloc(sizeof(mpaxos_req_t));
+    req->gids = &table;
+    req->sz_gids = 1;
+    req->data = commit.buf;
+    req->sz_data = commit.len;
+    req->cb_para = (void *)param;
 
     int ret = mpaxos_commit_req(req);
     assert(!ret);
 
-    while (operation[op_id].result.progress >= 0 && operations[op_id].result.progress < 1) {
+    while (operations[op_id].result.progress >= 0 && operations[op_id].result.progress < 1) {
         operations[op_id].lock.wait();
     }
     operations[op_id].lock.unlock();
@@ -284,18 +289,18 @@ int kvdb_get(uint8_t * key, size_t klen, uint8_t **value, size_t *vlen) {
     Buf keybuf(key, klen);
     Buf commit = wrap(OP_GET, table, keybuf);
 
-    OpeartionParam * param = new OperationParam();
+    OperationParam * param = new OperationParam();
     param->id = op_id;
 
     II("id: %lu, GET mpaxos_commit_req: table = %d, value len = %zu", op_id, table, commit.len);
     
     // TODO
-    mpaxos_req_t req = {};
-    req.gids = &table;
-    req.sz_gids = 1;
-    req.data = commit.buf;
-    req.sz_data = commit.len;
-    req.cb_para = (void *)param;
+    mpaxos_req_t * req = (mpaxos_req_t *) malloc(sizeof(mpaxos_req_t));
+    req->gids = &table;
+    req->sz_gids = 1;
+    req->data = commit.buf;
+    req->sz_data = commit.len;
+    req->cb_para = (void *)param;
 
     int ret = mpaxos_commit_req(req);
     assert(!ret);
@@ -311,7 +316,7 @@ int kvdb_get(uint8_t * key, size_t klen, uint8_t **value, size_t *vlen) {
         memcpy(*value, operations[op_id].result.buf, *vlen);
     }
 
-    return operation[op_id].result.errcode;
+    return operations[op_id].result.errcode;
 }
 
 
@@ -335,12 +340,12 @@ int kvdb_del(uint8_t * key, size_t klen) {
     II("id: %lu, DEL mpaxos_commit_req: table = %d, value len = %zu", op_id, table, commit.len);
 
      // TODO
-    mpaxos_req_t req = {};
-    req.gids = &table;
-    req.sz_gids = 1;
-    req.data = commit.buf;
-    req.sz_data = commit.len;
-    req.cb_para = (void *)param;
+    mpaxos_req_t * req = (mpaxos_req_t *) malloc(sizeof(mpaxos_req_t));
+    req->gids = &table;
+    req->sz_gids = 1;
+    req->data = commit.buf;
+    req->sz_data = commit.len;
+    req->cb_para = (void *)param;
 
     int ret = mpaxos_commit_req(req);
     assert(!ret);
@@ -360,7 +365,7 @@ int kvdb_batch_put(uint8_t **keys, size_t * klens, uint8_t ** vals, size_t * vle
     }
 
     // TODO, keys should in the same talbe ? 
-    groupid_t tables = 1;
+    groupid_t table = 1;
     operation_id_t op_id = genOperationId();
     operations[op_id].lock.lock();
     
@@ -372,7 +377,7 @@ int kvdb_batch_put(uint8_t **keys, size_t * klens, uint8_t ** vals, size_t * vle
         args[2 * p + 1].len = vlens[p];
     }
 
-    Operation op(OP_BATCH_PUT, &tables, args, pairs);
+    Operation op(OP_BATCH_PUT, &table, args, pairs);
     Buf commit = wrap(op);
 
     OperationParam * param = new OperationParam();
@@ -381,12 +386,12 @@ int kvdb_batch_put(uint8_t **keys, size_t * klens, uint8_t ** vals, size_t * vle
     II("id: %lu, BATCH_PUT mpaxos_commit_req: table = %d, value len = %zu", op_id, table, commit.len);
 
      // TODO
-    mpaxos_req_t req = {};
-    req.gids = &table;
-    req.sz_gids = pairs;
-    req.data = commit.buf;
-    req.sz_data = commit.len;
-    req.cb_para = (void *)param;
+    mpaxos_req_t * req = (mpaxos_req_t *) malloc(sizeof(mpaxos_req_t));
+    req->gids = &table;
+    req->sz_gids = pairs;
+    req->data = commit.buf;
+    req->sz_data = commit.len;
+    req->cb_para = (void *)param;
 
     int ret = mpaxos_commit_req(req);
     assert(!ret);

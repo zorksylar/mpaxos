@@ -8,24 +8,30 @@ VERSION = '0.1'
 #out = 'bin'
 
 def options(opt):
-  opt.load('compiler_c compiler_cxx')
+    opt.load('compiler_c compiler_cxx')
 
 
 def configure(conf):
-  conf.load('compiler_c compiler_cxx')
-  
-  conf.env.PREFIX='/usr'
-  conf.env.LIBDIR='/usr/lib'
-  conf.env.INCLUDEDIR='/usr/include'
-  
-  conf.env.LIB_PTHREAD = 'pthread'
-  conf.check_cfg(atleast_pkgconfig_version='0.0.0')
-  conf.check_cfg(package='mpaxos', uselib_store='MPAXOS', args=['--cflags', '--libs'])
-  conf.check_cfg(package='leveldb', uselib_store='LEVELDB', args=['--cflags', '--libs'])
+    conf.load('compiler_c compiler_cxx')
+    
+    conf.env.PREFIX='/usr'
+    conf.env.LIBDIR='/usr/lib'
+    conf.env.INCLUDEDIR='/usr/include'
+    
+    conf.env.LIB_PTHREAD = 'pthread'
+    conf.check_cfg(atleast_pkgconfig_version='0.0.0')
+    conf.check_cfg(package='mpaxos', uselib_store='MPAXOS', args=['--cflags', '--libs'])
+    conf.check_cfg(package='leveldb', uselib_store='LEVELDB', args=['--cflags', '--libs'])
+    # TODO c++11 check
 
 
 def build(bld):
-  bld.stlib(source='kvdb.cpp operation.cpp', target='kvdb', use=['MPAXOS', 'LEVELDB'], includes='. ../include', install_path=False)
+    bld.stlib(source='kvdb.cpp operation.cpp', 
+            target='kvdb', 
+            use=['MPAXOS', 'LEVELDB'], 
+            cxxflags = ['-std=c++11'],
+            includes='. ../include', 
+            install_path=False)
 
 
 
