@@ -16,6 +16,7 @@ def options(opt):
 def configure(conf):
     conf.load('compiler_c compiler_cxx')
     
+    conf.env.append_value('CFLAGS', '-std=c++11')
     conf.env.PREFIX='/usr'
     conf.env.LIBDIR='/usr/lib'
     conf.env.INCLUDEDIR='/usr/include'
@@ -29,25 +30,19 @@ def configure(conf):
 
 def build(bld):
     bld.stlib(source=bld.path.ant_glob('kvdb.cpp operation.cpp'), 
-            target='libkvdb', 
+            target='kvdb', 
             use=['MPAXOS', 'LEVELDB'], 
             cxxflags = ['-std=c++11'],
             includes='. ../include', 
             install_path='${LIBDIR}')
 
-    bld.install_files('${PREFIX}/include', bld.path.ant_glob('../include/libkvdb/*.h'))
+    bld.install_files('${PREFIX}/include', bld.path.parent.ant_glob('include/kvdb/*.h'))
     bld(features = 'subst',
-        source = 'libkvdb.pc.in',
-        target = 'libkvdb.in',
+        source = 'kvdb.pc.in',
+        target = 'kvdb.pc',
         encoding = 'utf8',
         intall_path = '${PREFIX}/lib/pkgconfig', 
         CFLAGS = ' '.join(CFLAGS),
         VERSION = '0.0',
         PREFIX = bld.env.PREFIX )
-
-
-
-
-
-
 
