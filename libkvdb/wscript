@@ -37,6 +37,7 @@ def build(bld):
             install_path='${LIBDIR}')
 
     bld.install_files('${PREFIX}/include', bld.path.parent.ant_glob('include/kvdb/*.h'))
+    # TODO install kvdb.pc failed
     bld(features = 'subst',
         source = 'kvdb.pc.in',
         target = 'kvdb.pc',

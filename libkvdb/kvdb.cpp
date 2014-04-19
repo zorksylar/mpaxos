@@ -37,11 +37,11 @@ static kvdb_ret_t kvdb_ret(const leveldb::Status &s) {
     if (s.ok()) {
         return KVDB_RET_OK;
     } else if (s.IsNotFound()) {
-        return KVDB_NOT_FOUND;
+        return KVDB_RET_NOT_FOUND;
     } else if (s.IsCorruption()) {
-        return KVDB_CORRUPTION;
+        return KVDB_RET_CORRUPTION;
     } else if (s.IsIOError()) {
-        return KVDB_IO_ERROR;
+        return KVDB_RET_IO_ERROR;
     }
     
     return KVDB_RET_OK;
@@ -196,7 +196,7 @@ int kvdb_init(char *dbhome, char * mpaxos_config_path){
   
   if (false == status.ok()) {
     EE("leveldb::DB open/create failed, msg: %s", status.ToString().c_str());
-    return KVDB_OPEN_FAILED ;
+    return KVDB_RET_OPEN_FAILED ;
   }
 
   mpaxos_init();
