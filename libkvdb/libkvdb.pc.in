@@ -1,0 +1,15 @@
+prefix=@PPREFIX@
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include
+
+Name: mkvdb
+Description: Kvdb Based on Manhatan Paxos and Leveldb
+Version: @VERSION@
+
+Requires: leveldb
+Requires.private:
+Libs: -L${libdir} -lmpaxos
+Cflags: -I${includedir} @CFLAGS@
+
+
