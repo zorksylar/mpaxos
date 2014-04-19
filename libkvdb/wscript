@@ -16,7 +16,6 @@ def options(opt):
 def configure(conf):
     conf.load('compiler_c compiler_cxx')
     
-    conf.env.append_value('CFLAGS', '-std=c++11')
     conf.env.PREFIX='/usr'
     conf.env.LIBDIR='/usr/lib'
     conf.env.INCLUDEDIR='/usr/include'

@@ -8,11 +8,11 @@ def options(opt):
 def configure(conf):
     conf.load('compiler_c')
     conf.check_cfg(atleast_pkgconfig_version='0.0.0')
-    conf.check_cfg(package='mpaxos', uselib_store='MPAXOS', args=['--cflags', '--libs'])
+    #conf.check_cfg(package='mpaxos', uselib_store='MPAXOS', args=['--cflags', '--libs'])
     # TODO
-    #conf.check_cfg(package='kvdb', uselib_store='KVDB', args=['--cflags', '--libs'])
+    conf.check_cfg(package='kvdb', uselib_store='KVDB', args=['--cflags', '--libs'])
   
 
 def build(bld):
-    bld.program(source='hello_kvdb.c', target='hello_kvdb.out', use='MPAXOS')
+    bld.program(source='hello_kvdb.c', target='hello_kvdb.out', use='KVDB')
 
